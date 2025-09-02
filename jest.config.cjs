@@ -7,9 +7,9 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'js'],
   moduleNameMapper: {
-  '^@/(.*)$': '<rootDir>/src/$1',
-  '^@/types$': '<rootDir>/src/types/index.ts',
-  '^@/services/(.*)$': '<rootDir>/src/services/$1',
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@/types$': '<rootDir>/src/types/index.ts',
+    '^@/services/(.*)$': '<rootDir>/src/services/$1',
   },
   // Temporarily disable setup to avoid Miniflare issues
   // setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],

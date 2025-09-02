@@ -1,6 +1,9 @@
 import { CacheService } from './services/CacheService';
 import { ConfigService } from './services/ConfigService';
-import { WorkerResponse, SQLQuery, CloudflareEnvironment } from './types';
+import { RouterService } from './services/RouterService';
+import { CircuitBreakerService } from './services/CircuitBreakerService';
+import { ConnectionManager } from './services/ConnectionManager';
+import { WorkerResponse, SQLQuery, CloudflareEnvironment, QueryRequest } from './types';
 
 /**
  * Main gateway worker entry point for Edge SQL
@@ -31,6 +34,9 @@ export default {
 export class EdgeSQLGateway {
   private cacheService: CacheService;
   private configService: ConfigService;
+  private routerService: RouterService;
+  private breaker: CircuitBreakerService;
+  private connections: ConnectionManager;
 
   constructor(
     private env: CloudflareEnvironment,
@@ -38,6 +44,9 @@ export class EdgeSQLGateway {
   ) {
     this.cacheService = new CacheService(this.env);
     this.configService = new ConfigService(this.env);
+    this.routerService = new RouterService(this.env);
+    this.breaker = new CircuitBreakerService();
+    this.connections = new ConnectionManager();
   }
 
   /**
@@ -47,6 +56,12 @@ export class EdgeSQLGateway {
     // CORS handling
     if (request.method === 'OPTIONS') {
       return this.handleCORS();
+    }
+
+    // Basic WebSocket upgrade handling for sticky sessions
+    const upgrade = request.headers.get('Upgrade') || '';
+    if (upgrade.toLowerCase() === 'websocket') {
+      return this.handleWebSocket(request);
     }
 
     // Authentication and tenant validation
@@ -90,6 +105,79 @@ export class EdgeSQLGateway {
         ...this.getCORSHeaders(),
       },
     });
+  }
+
+  private async handleWebSocket(request: Request): Promise<Response> {
+    const { 0: client, 1: server } = new WebSocketPair();
+
+    const auth = this.validateAuth(request);
+    if (!auth.valid || !auth.tenantId) {
+      // Immediately close with 1008 policy violation
+      (server as any).close(1008, 'Unauthorized');
+      return new Response(null, { status: 101, webSocket: client } as any);
+    }
+
+    (server as any).accept();
+
+    // Derive or receive a session id from headers; fallback to random
+    const sessionId = request.headers.get('x-session-id') || crypto.randomUUID();
+
+    // For initial bind, pick shard based on tenant hash
+    const shardId = this.getPrimaryShardForTenant(auth.tenantId);
+    this.connections.bindSession(sessionId, auth.tenantId, shardId);
+
+    // Periodic cleanup of stale sessions
+    this.ctx.waitUntil(Promise.resolve().then(() => this.connections.cleanup()));
+
+    // Simple message protocol: { sql, params, type }
+    server.addEventListener('message', async (evt: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(evt.data)) as { sql: string; params?: unknown[] };
+        const sqlUpper = payload.sql?.trim().toUpperCase() || '';
+        const type: SQLQuery['type'] = sqlUpper.startsWith('SELECT')
+          ? 'SELECT'
+          : sqlUpper.match(/^(INSERT|UPDATE|DELETE)/)
+            ? (sqlUpper.split(' ')[0] as any)
+            : 'DDL';
+        const query: SQLQuery = {
+          sql: payload.sql,
+          params: payload.params || [],
+          type,
+          tableName: this.extractTableName(payload.sql),
+          timestamp: Date.now(),
+        };
+
+        const shardInfo = this.connections.getSession(sessionId);
+        const routedShardId =
+          shardInfo?.shardId || this.getShardForTable(auth.tenantId!, query.tableName);
+        const target = this.env.SHARD.get(this.env.SHARD.idFromName(routedShardId));
+
+        const res = await this.breaker.execute(routedShardId, async () =>
+          target.fetch(
+            new Request(
+              'https://internal/' +
+                (type === 'SELECT' ? 'query' : type === 'DDL' ? 'ddl' : 'mutation'),
+              { method: 'POST', body: JSON.stringify({ query, tenantId: auth.tenantId }) }
+            )
+          )
+        );
+        const data = (await res.json()) as WorkerResponse;
+        server.send(JSON.stringify({ success: true, data }));
+      } catch (err) {
+        server.send(
+          JSON.stringify({
+            success: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          })
+        );
+      }
+    });
+
+    server.addEventListener('close', () => {
+      this.connections.releaseSession(sessionId);
+    });
+
+    return new Response(null, { status: 101, webSocket: client } as any);
   }
 
   /**
@@ -194,15 +282,19 @@ export class EdgeSQLGateway {
 
     const startTime = Date.now();
 
-    // Route to appropriate shard
-    const shardId = this.getShardForTable(tenantId, query.tableName);
-    const shard = this.env.SHARD.get(this.env.SHARD.idFromName(shardId));
+    // Route to appropriate shard using RouterService
+    const queryRequest: QueryRequest = { sql: query.sql } as QueryRequest;
+    const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
+    const shardId = targetInfo.shardId;
+    const shard = this.env.SHARD.get(targetInfo.durableObjectId);
 
-    const result = await shard.fetch(
-      new Request('https://internal/query', {
-        method: 'POST',
-        body: JSON.stringify({ query, tenantId }),
-      })
+    const result = await this.breaker.execute(shardId, () =>
+      shard.fetch(
+        new Request('https://internal/query', {
+          method: 'POST',
+          body: JSON.stringify({ query, tenantId }),
+        })
+      )
     );
 
     const data = await result.json<WorkerResponse>();
@@ -230,15 +322,19 @@ export class EdgeSQLGateway {
   private async handleMutation(query: SQLQuery, tenantId: string): Promise<WorkerResponse> {
     const startTime = Date.now();
 
-    // Route to appropriate shard
-    const shardId = this.getShardForTable(tenantId, query.tableName);
-    const shard = this.env.SHARD.get(this.env.SHARD.idFromName(shardId));
+    // Route to appropriate shard using RouterService
+    const queryRequest: QueryRequest = { sql: query.sql } as QueryRequest;
+    const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
+    const shardId = targetInfo.shardId;
+    const shard = this.env.SHARD.get(targetInfo.durableObjectId);
 
-    const result = await shard.fetch(
-      new Request('https://internal/mutation', {
-        method: 'POST',
-        body: JSON.stringify({ query, tenantId }),
-      })
+    const result = await this.breaker.execute(shardId, () =>
+      shard.fetch(
+        new Request('https://internal/mutation', {
+          method: 'POST',
+          body: JSON.stringify({ query, tenantId }),
+        })
+      )
     );
 
     const data = await result.json<WorkerResponse>();
@@ -275,11 +371,13 @@ export class EdgeSQLGateway {
     const primaryShardId = this.getPrimaryShardForTenant(tenantId);
     const shard = this.env.SHARD.get(this.env.SHARD.idFromName(primaryShardId));
 
-    const result = await shard.fetch(
-      new Request('https://internal/ddl', {
-        method: 'POST',
-        body: JSON.stringify({ query, tenantId }),
-      })
+    const result = await this.breaker.execute(primaryShardId, () =>
+      shard.fetch(
+        new Request('https://internal/ddl', {
+          method: 'POST',
+          body: JSON.stringify({ query, tenantId }),
+        })
+      )
     );
 
     const data = await result.json<WorkerResponse>();
