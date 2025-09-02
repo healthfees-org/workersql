@@ -5,13 +5,15 @@ ADRs document important architectural decisions, their context, and rationale.
 
 ## ADR Index
 
-| ADR                                             | Title                                         | Status   | Date       |
-| ----------------------------------------------- | --------------------------------------------- | -------- | ---------- |
-| [ADR-001](./001-cloudflare-workers-platform.md) | Cloudflare Workers Platform Selection         | Accepted | 2025-09-01 |
-| [ADR-002](./002-durable-objects-storage.md)     | Durable Objects for Authoritative Storage     | Accepted | 2025-09-01 |
-| [ADR-003](./003-cache-aside-pattern.md)         | Cache-Aside Pattern with KV                   | Accepted | 2025-09-01 |
-| [ADR-004](./004-typescript-strict-mode.md)      | TypeScript Strict Mode Configuration          | Accepted | 2025-09-01 |
-| [ADR-005](./005-jest-vitest-testing.md)         | Jest and Vitest Testing Framework Integration | Accepted | 2025-09-01 |
+| ADR                                               | Title                                         | Status   | Date       |
+| ------------------------------------------------- | --------------------------------------------- | -------- | ---------- |
+| [ADR-001](./001-cloudflare-workers-platform.md)   | Cloudflare Workers Platform Selection         | Accepted | 2025-09-01 |
+| [ADR-002](./002-durable-objects-storage.md)       | Durable Objects for Authoritative Storage     | Accepted | 2025-09-01 |
+| [ADR-003](./003-cache-aside-pattern.md)           | Cache-Aside Pattern with KV                   | Accepted | 2025-09-01 |
+| [ADR-004](./004-typescript-strict-mode.md)        | TypeScript Strict Mode Configuration          | Accepted | 2025-09-01 |
+| [ADR-005](./005-jest-vitest-testing.md)           | Jest and Vitest Testing Framework Integration | Accepted | 2025-09-01 |
+| [ADR-006](./006-routing-sharding-system.md)       | Routing and Sharding System Architecture      | Accepted | 2025-09-02 |
+| [ADR-007](./007-gateway-worker-implementation.md) | Gateway Worker Implementation Architecture    | Accepted | 2025-09-02 |
 
 ## ADR Template
 

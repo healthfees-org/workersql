@@ -1,0 +1,22 @@
+# Example routing policy configuration
+version: 1
+
+# Explicit tenant-to-shard mappings
+tenants:
+  tenant_acme: shard_0
+  tenant_globex: shard_1
+  tenant_umbrella: shard_2
+
+# Range-based routing for tenant prefixes
+ranges:
+  - prefix: 'acme'
+    shard: shard_0
+  - prefix: 'globex'
+    shard: shard_1
+  - prefix: 'umbrella'
+    shard: shard_2
+
+# Default configuration
+defaults:
+  shard_count: 4
+  strategy: tenant_hash

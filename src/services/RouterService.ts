@@ -5,6 +5,8 @@ import {
   CloudflareEnvironment,
   EdgeSQLError,
 } from '../types';
+import { TablePolicyParser } from './TablePolicyParser';
+import { RoutingVersionManager } from './RoutingVersionManager';
 
 /**
  * RouterService - Handles intelligent routing of SQL queries to appropriate shards
@@ -127,11 +129,15 @@ export class RouterService implements IRouterService {
   private tablePolicies: Map<string, TablePolicy> = new Map();
   private shardHealth: Map<string, ShardHealth> = new Map();
   private lastHealthCheck: number = 0;
+  private policyParser: TablePolicyParser;
+  private versionManager: RoutingVersionManager;
 
   constructor(
     private env: CloudflareEnvironment,
     private defaultStrategy: RoutingStrategy = RoutingStrategy.TENANT_HASH
   ) {
+    this.policyParser = new TablePolicyParser();
+    this.versionManager = new RoutingVersionManager(env);
     this.initializeDefaultPolicies();
   }
 
@@ -171,7 +177,20 @@ export class RouterService implements IRouterService {
       return this.routingPolicies.get(tenantId)!;
     }
 
-    // Load from KV storage
+    // Try to get current version from version manager
+    try {
+      const currentVersion = await this.versionManager.getCurrentVersion();
+      const policy = await this.versionManager.getPolicyByVersion(currentVersion);
+
+      if (policy) {
+        this.routingPolicies.set(tenantId, policy);
+        return policy;
+      }
+    } catch (error) {
+      console.warn('Version manager not available, falling back to KV storage:', error);
+    }
+
+    // Fallback to KV storage
     const policyKey = `routing:tenant:${tenantId}`;
     const storedPolicy = (await this.env.APP_CACHE.get(policyKey, 'json')) as RoutingPolicy;
 
@@ -192,20 +211,40 @@ export class RouterService implements IRouterService {
   }
 
   /**
-   * Update routing policy
+   * Update routing policy with versioning
    */
-  async updateRoutingPolicy(policy: RoutingPolicy): Promise<void> {
-    // Validate policy
-    if (!policy.version || policy.version < 1) {
-      throw new EdgeSQLError('Invalid routing policy version', 'INVALID_POLICY');
-    }
+  async updateRoutingPolicy(policy: RoutingPolicy, description?: string): Promise<void> {
+    // Use version manager for atomic updates
+    await this.versionManager.updateCurrentPolicy(policy, description);
 
-    // Store in KV
-    for (const tenantId of Object.keys(policy.tenants)) {
-      const policyKey = `routing:tenant:${tenantId}`;
-      await this.env.APP_CACHE.put(policyKey, JSON.stringify(policy));
-      this.routingPolicies.set(tenantId, policy);
+    // Clear local cache
+    this.routingPolicies.clear();
+  }
+
+  /**
+   * Get routing policy version history
+   */
+  async getPolicyVersions(): Promise<any[]> {
+    return this.versionManager.listVersions();
+  }
+
+  /**
+   * Rollback routing policy to specific version
+   */
+  async rollbackPolicyToVersion(version: number): Promise<boolean> {
+    const success = await this.versionManager.rollbackToVersion(version);
+    if (success) {
+      // Clear local cache to force reload
+      this.routingPolicies.clear();
     }
+    return success;
+  }
+
+  /**
+   * Get policy diff between versions
+   */
+  async getPolicyDiff(fromVersion: number, toVersion: number): Promise<any> {
+    return this.versionManager.getPolicyDiff(fromVersion, toVersion);
   }
 
   /**
@@ -217,9 +256,23 @@ export class RouterService implements IRouterService {
       return this.tablePolicies.get(tableName)!;
     }
 
-    // Load from KV storage
-    const policyKey = `table:policy:${tableName}`;
-    const storedPolicy = (await this.env.APP_CACHE.get(policyKey, 'json')) as TablePolicy;
+    // Try to load from KV storage as YAML
+    const yamlKey = `table:policy:yaml:${tableName}`;
+    const yamlContent = await this.env.APP_CACHE.get(yamlKey, 'text');
+
+    if (yamlContent) {
+      try {
+        const policy = await this.policyParser.parseTablePolicy(yamlContent, tableName);
+        this.tablePolicies.set(tableName, policy);
+        return policy;
+      } catch (error) {
+        console.warn(`Failed to parse YAML policy for ${tableName}, falling back to JSON:`, error);
+      }
+    }
+
+    // Fallback to JSON storage
+    const jsonKey = `table:policy:${tableName}`;
+    const storedPolicy = (await this.env.APP_CACHE.get(jsonKey, 'json')) as TablePolicy;
 
     if (storedPolicy) {
       this.tablePolicies.set(tableName, storedPolicy);

@@ -46,4 +46,52 @@ describe('CircuitBreakerService', () => {
     ).rejects.toThrow('fail2');
     expect(cb.getState('shard_z')).toBe('open');
   });
+
+  it('handles cooldown period correctly', async () => {
+    const cb = new CircuitBreakerService({ failureThreshold: 1, windowMs: 1000, cooldownMs: 100 });
+    // Trip the circuit
+    await expect(
+      cb.execute('test', async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow('fail');
+    expect(cb.getState('test')).toBe('open');
+
+    // Should still be open immediately after
+    expect(cb.isOpen('test')).toBe(true);
+
+    // Wait for cooldown
+    await new Promise((r) => setTimeout(r, 110));
+
+    // Should now be half-open and allow execution
+    expect(cb.isOpen('test')).toBe(false);
+    expect(cb.getState('test')).toBe('half_open');
+  });
+
+  it('handles circuit breaker state transitions correctly', async () => {
+    const cb = new CircuitBreakerService({ failureThreshold: 1, windowMs: 1000, cooldownMs: 50 });
+
+    // Initially closed
+    expect(cb.getState('test')).toBe('closed');
+    expect(cb.isOpen('test')).toBe(false);
+
+    // Trip the circuit
+    await expect(
+      cb.execute('test', async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow('fail');
+    expect(cb.getState('test')).toBe('open');
+    expect(cb.isOpen('test')).toBe(true);
+
+    // Wait for cooldown - should transition to half-open
+    await new Promise((r) => setTimeout(r, 60));
+    expect(cb.isOpen('test')).toBe(false); // Should be half-open now
+    expect(cb.getState('test')).toBe('half_open');
+
+    // Success in half-open should close the circuit
+    const result = await cb.execute('test', async () => 'success');
+    expect(result).toBe('success');
+    expect(cb.getState('test')).toBe('closed');
+  });
 });
