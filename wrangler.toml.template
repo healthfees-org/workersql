@@ -1,0 +1,111 @@
+# Wrangler Configuration Template for Edge MySQL Gateway
+# Copy this file to wrangler.toml and update the placeholders with your actual values
+
+name = "edge-mysql-gateway"
+main = "src/gateway.ts"
+compatibility_date = "2024-08-31"
+compatibility_flags = ["nodejs_compat"]
+node_compat = true
+
+# Environment-specific configurations
+[env.development]
+name = "edge-mysql-gateway-dev"
+
+[env.staging]
+name = "edge-mysql-gateway-staging"
+
+[env.production]
+name = "edge-mysql-gateway-prod"
+
+# KV Namespace for caching
+# Create via: wrangler kv:namespace create "APP_CACHE"
+# For preview: wrangler kv:namespace create "APP_CACHE" --preview
+[[kv_namespaces]]
+binding = "APP_CACHE"
+id = "YOUR_KV_NAMESPACE_ID_HERE"               # Replace with actual KV namespace ID
+preview_id = "YOUR_KV_PREVIEW_NAMESPACE_ID_HERE"  # Replace with preview namespace ID
+
+# Queue for database events
+# Create via: wrangler queues create db-events
+[[queues.producers]]
+binding = "DB_EVENTS"
+queue = "db-events"
+
+# Queue consumer configuration
+[[queues.consumers]]
+queue = "db-events"
+max_batch_size = 50
+max_batch_timeout = 2
+max_retries = 3
+dead_letter_queue = "db-events-dlq"
+
+# Durable Objects for shards
+# The TableShard class will be exported from your worker
+[[durable_objects.bindings]]
+name = "SHARD"
+class_name = "TableShard"
+
+# D1 Database for portable mirror (optional)
+# Create via: wrangler d1 create portable-mirror
+[[d1_databases]]
+binding = "PORTABLE_DB"
+database_name = "portable-mirror"
+database_id = "YOUR_D1_DATABASE_ID_HERE"      # Replace with actual D1 database ID
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+MAX_SHARD_SIZE_GB = "1"        # Small for development
+CACHE_TTL_MS = "5000"          # 5 seconds for development
+CACHE_SWR_MS = "10000"         # 10 seconds for development
+DEFAULT_CACHE_TTL = "30000"    # 30 seconds default
+DEFAULT_CACHE_SWR = "120000"   # 2 minutes default
+SHARD_COUNT = "4"              # Number of shards
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = ["src"]
+
+[build.upload]
+format = "modules"
+dir = "dist"
+main = "gateway.js"
+
+# Development-specific overrides
+[env.development.vars]
+LOG_LEVEL = "debug"
+MAX_SHARD_SIZE_GB = "1"
+CACHE_TTL_MS = "5000"
+CACHE_SWR_MS = "10000"
+
+# Staging-specific overrides
+[env.staging.vars]
+LOG_LEVEL = "info"
+MAX_SHARD_SIZE_GB = "5"
+CACHE_TTL_MS = "30000"
+CACHE_SWR_MS = "120000"
+
+# Production-specific overrides
+[env.production.vars]
+LOG_LEVEL = "warn"
+MAX_SHARD_SIZE_GB = "50"
+CACHE_TTL_MS = "300000"    # 5 minutes
+CACHE_SWR_MS = "1800000"   # 30 minutes
+
+# Optional: Analytics and observability
+# [observability]
+# enabled = true
+
+# Optional: Custom domains (configure after deployment)
+# [env.production]
+# routes = [
+#   { pattern = "api.yourdomain.com/sql/*", zone_name = "yourdomain.com" }
+# ]
+
+# Optional: Secrets (set via wrangler secret put)
+# - JWT_SECRET
+# - DATABASE_ENCRYPTION_KEY
+# - ADMIN_API_KEY

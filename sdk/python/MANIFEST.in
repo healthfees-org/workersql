@@ -1,0 +1,14 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include ../schema *.json
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__/*
+global-exclude .pytest_cache/*
+global-exclude .mypy_cache/*
+global-exclude .coverage
+global-exclude htmlcov/*
+global-exclude *.egg-info/*
+global-exclude build/*
+global-exclude dist/*

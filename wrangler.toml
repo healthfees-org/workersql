@@ -1,0 +1,55 @@
+name = "edge-mysql-gateway"
+main = "src/gateway.ts"
+compatibility_date = "2024-08-15"
+node_compat = true
+
+[env.development]
+name = "edge-mysql-gateway-dev"
+
+[env.staging]
+name = "edge-mysql-gateway-staging"
+
+[env.production]
+name = "edge-mysql-gateway-prod"
+
+[[kv_namespaces]]
+binding = "APP_CACHE"
+id = "cache_namespace_id"
+preview_id = "cache_namespace_preview_id"
+
+[[queues.producers]]
+binding = "DB_EVENTS"
+queue = "db-events"
+
+[[queues.consumers]]
+queue = "db-events"
+max_batch_size = 50
+max_batch_timeout = 2
+max_retries = 3
+dead_letter_queue = "db-events-dlq"
+
+[[durable_objects.bindings]]
+name = "SHARD"
+class_name = "TableShard"
+
+[[d1_databases]]
+binding = "PORTABLE_DB"
+database_name = "portable-mirror"
+database_id = "d1_database_id"
+
+[vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "info"
+MAX_SHARD_SIZE_GB = "10"
+CACHE_TTL_MS = "30000"
+CACHE_SWR_MS = "120000"
+
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "src"
+
+[build.upload]
+format = "modules"
+dir = "dist"
+main = "gateway.js"

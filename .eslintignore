@@ -1,0 +1,13 @@
+node_modules/
+**/node_modules/**
+
+dist/
+build/
+coverage/
+
+sdk/
+.github/instructions/
+
+*.js.map
+*.d.ts.map
+**/*.min.js

@@ -1,0 +1,63 @@
+{
+  "name": "workersql",
+  "version": "0.1.0",
+  "description": "Edge SQL on Cloudflare - MySQL-compatible driver with DO-primary, KV cache, and queue invalidation",
+  "main": "dist/gateway.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "test": "jest --config jest.config.cjs",
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:coverage": "jest --config jest.config.cjs --coverage --coverageThreshold='{\"global\":{\"branches\":100,\"functions\":100,\"lines\":100,\"statements\":100}}'",
+    "test:unit": "jest --config jest.config.cjs --testPathPattern=unit",
+    "test:integration": "jest --config jest.config.cjs --testPathPattern=integration",
+    "test:e2e": "jest --config jest.config.cjs --testPathPattern=e2e",
+    "test:vitest": "vitest",
+    "test:vitest:run": "vitest run",
+    "test:vitest:coverage": "vitest run --coverage",
+    "test:vitest:watch": "vitest watch",
+    "test:local": "wrangler dev --local --compatibility-date=2024-08-31",
+    "lint": "eslint src tests --ext .ts,.js",
+    "lint:fix": "eslint src tests --ext .ts,.js --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
+    "security:check": "npm audit && bandit -r sdk/python/ || true",
+    "workflow:check": "npm run lint && npm run format:check && npm run test:coverage && npm run build",
+    "prepare": "pre-commit install"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "mysql",
+    "edge",
+    "database",
+    "sql",
+    "durable-objects"
+  ],
+  "author": "HealthFees Organization",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240815.0",
+    "@types/jest": "^29.5.5",
+    "@types/node": "^20.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^8.49.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-security": "^3.0.1",
+    "jest": "^29.7.0",
+    "miniflare": "^4.0.0",
+    "prettier": "^3.0.3",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2",
+    "vitest": "^3.2.4",
+    "wrangler": "^3.10.1"
+  },
+  "dependencies": {
+    "yaml": "^2.3.2",
+    "zod": "^3.22.2"
+  }
+}

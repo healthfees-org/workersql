@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkerSQL API Schema",
+  "description": "Common data models for WorkerSQL API across all SDK languages",
+  "definitions": {
+    "DatabaseConfig": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Database host"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Database port"
+        },
+        "username": {
+          "type": "string",
+          "description": "Database username"
+        },
+        "password": {
+          "type": "string",
+          "description": "Database password"
+        },
+        "database": {
+          "type": "string",
+          "description": "Database name"
+        },
+        "ssl": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable SSL connection"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 30000,
+          "description": "Connection timeout in milliseconds"
+        }
+      },
+      "required": ["host", "username", "password", "database"],
+      "additionalProperties": false
+    },
+    "QueryRequest": {
+      "type": "object",
+      "properties": {
+        "sql": {
+          "type": "string",
+          "description": "SQL query to execute"
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ]
+          },
+          "description": "Query parameters"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 300000,
+          "default": 30000,
+          "description": "Query timeout in milliseconds"
+        },
+        "cache": {
+          "$ref": "#/definitions/CacheOptions"
+        }
+      },
+      "required": ["sql"],
+      "additionalProperties": false
+    },
+    "CacheOptions": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable query result caching"
+        },
+        "ttl": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 300,
+          "description": "Cache TTL in seconds"
+        },
+        "key": {
+          "type": "string",
+          "description": "Custom cache key"
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueryResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Query execution status"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "description": "Query result rows"
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of rows affected/returned"
+        },
+        "executionTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Query execution time in milliseconds"
+        },
+        "cached": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether result was served from cache"
+        },
+        "error": {
+          "$ref": "#/definitions/ErrorResponse"
+        }
+      },
+      "required": ["success"],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "INVALID_QUERY",
+            "CONNECTION_ERROR",
+            "TIMEOUT_ERROR",
+            "AUTH_ERROR",
+            "PERMISSION_ERROR",
+            "RESOURCE_LIMIT",
+            "INTERNAL_ERROR"
+          ],
+          "description": "Error code"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Additional error details"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Error timestamp in ISO 8601 format"
+        }
+      },
+      "required": ["code", "message", "timestamp"],
+      "additionalProperties": false
+    },
+    "BatchQueryRequest": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QueryRequest"
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "description": "Array of queries to execute"
+        },
+        "transaction": {
+          "type": "boolean",
+          "default": false,
+          "description": "Execute queries in a transaction"
+        },
+        "stopOnError": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop execution on first error"
+        }
+      },
+      "required": ["queries"],
+      "additionalProperties": false
+    },
+    "BatchQueryResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Overall batch execution status"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QueryResponse"
+          },
+          "description": "Individual query results"
+        },
+        "totalExecutionTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total batch execution time in milliseconds"
+        }
+      },
+      "required": ["success", "results"],
+      "additionalProperties": false
+    },
+    "HealthCheckResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy"],
+          "description": "Service health status"
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "connected": {
+              "type": "boolean"
+            },
+            "responseTime": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": ["connected"],
+          "additionalProperties": false
+        },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "hitRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": ["enabled"],
+          "additionalProperties": false
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["status", "database", "timestamp"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,38 @@
+# Instructions and documentation (keep in repo but exclude from some tools)
+.github/instructions
+.github/copilot-instructions.md
+
+# Dependencies
+node_modules
+.venv
+
+# Build outputs
+dist
+coverage
+
+# Local development
+.env
+.env.local
+.dev.vars
+wrangler.toml.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+tests/fixtures/temp/
+*.db
+*.sqlite
+*.sqlite3
+
+# Miniflare
+.mf/

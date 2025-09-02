@@ -1,0 +1,14 @@
+requests>=2.31.0
+jsonschema>=4.19.0
+typing-extensions>=4.7.0
+
+# Type stubs for better IDE support and type checking
+types-requests>=2.31.0
+types-jsonschema>=4.19.0
+types-pytest>=7.4.0
+
+# Additional utilities for production use
+pydantic>=2.5.0  # For data validation
+httpx>=0.25.0   # Modern async HTTP client (alternative to requests)
+aiofiles>=23.2.1 # Async file operations
+python-dotenv>=1.0.0 # Environment variable management

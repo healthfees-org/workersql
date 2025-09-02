@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# SDK (different formatting rules)
+sdk/
+
+# Documentation and instructions
+.github/instructions/
+
+# Log files
+*.log
+
+# Lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.d.ts
+*.js.map
+**/*.min.js
