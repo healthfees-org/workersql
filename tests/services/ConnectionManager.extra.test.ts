@@ -30,4 +30,37 @@ describe('ConnectionManager (extras)', () => {
     cm.releaseSession('s2');
     expect(cm.getShardConnections('shard_1')).toBe(0);
   });
+
+  it('getSession updates lastSeen timestamp for existing session', () => {
+    const cm = new ConnectionManager(1000);
+    const beforeTime = Date.now();
+
+    // Bind session
+    cm.bindSession('s1', 't', 'shard_1');
+
+    // Call getSession and verify it returns a session with updated lastSeen
+    const retrieved = cm.getSession('s1');
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.lastSeen).toBeGreaterThanOrEqual(beforeTime);
+    expect(retrieved?.tenantId).toBe('t');
+    expect(retrieved?.shardId).toBe('shard_1');
+  });
+
+  it('cleanup removes stale sessions and decrements connection counts', () => {
+    const cm = new ConnectionManager(10); // Very short TTL
+    cm.bindSession('s1', 't', 'shard_1');
+    cm.bindSession('s2', 't', 'shard_2');
+
+    expect(cm.getShardConnections('shard_1')).toBe(1);
+    expect(cm.getShardConnections('shard_2')).toBe(1);
+
+    // Wait for sessions to become stale
+    setTimeout(() => {
+      cm.cleanup();
+      expect(cm.getSession('s1')).toBeUndefined();
+      expect(cm.getSession('s2')).toBeUndefined();
+      expect(cm.getShardConnections('shard_1')).toBe(0);
+      expect(cm.getShardConnections('shard_2')).toBe(0);
+    }, 15);
+  });
 });

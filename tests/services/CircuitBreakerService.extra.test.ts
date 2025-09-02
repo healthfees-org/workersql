@@ -33,4 +33,22 @@ describe('CircuitBreakerService (extras)', () => {
     expect(res).toBe('ok');
     expect(cb.getState('half')).toBe('closed');
   });
+
+  it('transitions from open to half-open after cooldown period', async () => {
+    const cb = new CircuitBreakerService({ failureThreshold: 1, windowMs: 1000, cooldownMs: 50 });
+    // Open the circuit
+    await expect(
+      cb.execute('cooldown', async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow();
+    expect(cb.getState('cooldown')).toBe('open');
+
+    // Wait for cooldown
+    await new Promise((r) => setTimeout(r, 60));
+
+    // Check that isOpen now returns false (half-open state)
+    expect(cb.isOpen('cooldown')).toBe(false);
+    expect(cb.getState('cooldown')).toBe('half_open');
+  });
 });
