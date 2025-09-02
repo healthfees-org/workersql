@@ -89,7 +89,12 @@ export class ConfigService extends BaseService {
    * Determine shard ID for a given table and shard key
    */
   async resolveShardId(tableName: string, shardKey?: string, tenantId?: string): Promise<string> {
-    await this.getTablePolicy(tableName);
+    // Attempt to load table policy; if missing, continue with routing defaults
+    try {
+      await this.getTablePolicy(tableName);
+    } catch (e) {
+      this.log('warn', 'No table policy found; falling back to routing defaults', { tableName });
+    }
     const routingPolicy = await this.getRoutingPolicy();
 
     // Tenant-based routing takes precedence
@@ -144,12 +149,14 @@ export class ConfigService extends BaseService {
           errors.push(`Table ${tableName} missing primary key definition`);
         }
 
-        if (policy.cache.ttlMs <= 0) {
-          errors.push(`Table ${tableName} has invalid cache TTL`);
-        }
-
-        if (policy.cache.swrMs <= policy.cache.ttlMs) {
-          errors.push(`Table ${tableName} SWR time must be greater than TTL`);
+        // For strong cache mode, ttl/swr may be zero; for others enforce TTL>0 and SWR>TTL
+        if (policy.cache.mode !== 'strong') {
+          if (policy.cache.ttlMs <= 0) {
+            errors.push(`Table ${tableName} has invalid cache TTL`);
+          }
+          if (policy.cache.swrMs <= policy.cache.ttlMs) {
+            errors.push(`Table ${tableName} SWR time must be greater than TTL`);
+          }
         }
       }
 
