@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="161" failures="0" errors="0" time="34.54">
+  <testsuite name="Simple Test" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:56" time="8.469" tests="1">
+    <testcase classname="Simple Test should pass" name="Simple Test should pass" time="0.172">
+    </testcase>
+  </testsuite>
+  <testsuite name="CircuitBreakerService" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:56" time="8.917" tests="5">
+    <testcase classname="CircuitBreakerService executes successfully when closed" name="CircuitBreakerService executes successfully when closed" time="0.181">
+    </testcase>
+    <testcase classname="CircuitBreakerService opens after failures and blocks until cooldown" name="CircuitBreakerService opens after failures and blocks until cooldown" time="0.241">
+    </testcase>
+    <testcase classname="CircuitBreakerService re-opens on failure in half-open" name="CircuitBreakerService re-opens on failure in half-open" time="0.065">
+    </testcase>
+    <testcase classname="CircuitBreakerService handles cooldown period correctly" name="CircuitBreakerService handles cooldown period correctly" time="0.114">
+    </testcase>
+    <testcase classname="CircuitBreakerService handles circuit breaker state transitions correctly" name="CircuitBreakerService handles circuit breaker state transitions correctly" time="0.069">
+    </testcase>
+  </testsuite>
+  <testsuite name="ConfigService" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:55" time="9.556" tests="10">
+    <testcase classname="ConfigService getTablePolicy should return policy for existing table" name="ConfigService getTablePolicy should return policy for existing table" time="1.319">
+    </testcase>
+    <testcase classname="ConfigService getTablePolicy should throw error for non-existent table" name="ConfigService getTablePolicy should throw error for non-existent table" time="0.034">
+    </testcase>
+    <testcase classname="ConfigService getTablePolicies should return all table policies" name="ConfigService getTablePolicies should return all table policies" time="0.006">
+    </testcase>
+    <testcase classname="ConfigService getTablePolicies should cache policies after first load" name="ConfigService getTablePolicies should cache policies after first load" time="0.005">
+    </testcase>
+    <testcase classname="ConfigService getRoutingPolicy should return routing policy" name="ConfigService getRoutingPolicy should return routing policy" time="0.012">
+    </testcase>
+    <testcase classname="ConfigService resolveShardId should resolve shard by tenant ID" name="ConfigService resolveShardId should resolve shard by tenant ID" time="0.008">
+    </testcase>
+    <testcase classname="ConfigService resolveShardId should resolve shard by hash for non-tenant data" name="ConfigService resolveShardId should resolve shard by hash for non-tenant data" time="0.031">
+    </testcase>
+    <testcase classname="ConfigService resolveShardId should use default shard when no routing criteria match" name="ConfigService resolveShardId should use default shard when no routing criteria match" time="0.017">
+    </testcase>
+    <testcase classname="ConfigService validateConfig should validate correct configuration" name="ConfigService validateConfig should validate correct configuration" time="0.022">
+    </testcase>
+    <testcase classname="ConfigService clearCache should clear configuration cache" name="ConfigService clearCache should clear configuration cache" time="0.006">
+    </testcase>
+  </testsuite>
+  <testsuite name="ConnectionManager (extras)" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:33:05" time="1.623" tests="6">
+    <testcase classname="ConnectionManager (extras) getShardConnections returns 0 for unknown shard" name="ConnectionManager (extras) getShardConnections returns 0 for unknown shard" time="0.002">
+    </testcase>
+    <testcase classname="ConnectionManager (extras) releaseSession on unknown id is a no-op" name="ConnectionManager (extras) releaseSession on unknown id is a no-op" time="0.002">
+    </testcase>
+    <testcase classname="ConnectionManager (extras) getSession for unknown id returns undefined" name="ConnectionManager (extras) getSession for unknown id returns undefined" time="0.002">
+    </testcase>
+    <testcase classname="ConnectionManager (extras) handles multiple sessions on same shard" name="ConnectionManager (extras) handles multiple sessions on same shard" time="0.002">
+    </testcase>
+    <testcase classname="ConnectionManager (extras) getSession updates lastSeen timestamp for existing session" name="ConnectionManager (extras) getSession updates lastSeen timestamp for existing session" time="0.004">
+    </testcase>
+    <testcase classname="ConnectionManager (extras) cleanup removes stale sessions and decrements connection counts" name="ConnectionManager (extras) cleanup removes stale sessions and decrements connection counts" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="CircuitBreakerService (extras)" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:33:04" time="2.278" tests="3">
+    <testcase classname="CircuitBreakerService (extras) isOpen returns false when closed and toggles true when open" name="CircuitBreakerService (extras) isOpen returns false when closed and toggles true when open" time="0.102">
+    </testcase>
+    <testcase classname="CircuitBreakerService (extras) half-open allows success and closes" name="CircuitBreakerService (extras) half-open allows success and closes" time="0.065">
+    </testcase>
+    <testcase classname="CircuitBreakerService (extras) transitions from open to half-open after cooldown period" name="CircuitBreakerService (extras) transitions from open to half-open after cooldown period" time="0.072">
+    </testcase>
+  </testsuite>
+  <testsuite name="CacheService" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:33:05" time="1.75" tests="12">
+    <testcase classname="CacheService get should return null for cache miss" name="CacheService get should return null for cache miss" time="0.014">
+    </testcase>
+    <testcase classname="CacheService get should return cache entry for cache hit" name="CacheService get should return cache entry for cache hit" time="0.006">
+    </testcase>
+    <testcase classname="CacheService get should handle invalid JSON gracefully" name="CacheService get should handle invalid JSON gracefully" time="0.003">
+    </testcase>
+    <testcase classname="CacheService set should store cache entry with correct format" name="CacheService set should store cache entry with correct format" time="0.003">
+    </testcase>
+    <testcase classname="CacheService set should use default TTL values when not provided" name="CacheService set should use default TTL values when not provided" time="0.002">
+    </testcase>
+    <testcase classname="CacheService delete should delete cache entry" name="CacheService delete should delete cache entry" time="0.004">
+    </testcase>
+    <testcase classname="CacheService cache freshness checks should correctly identify fresh entries" name="CacheService cache freshness checks should correctly identify fresh entries" time="0.004">
+    </testcase>
+    <testcase classname="CacheService cache freshness checks should correctly identify stale but revalidatable entries" name="CacheService cache freshness checks should correctly identify stale but revalidatable entries" time="0.004">
+    </testcase>
+    <testcase classname="CacheService cache freshness checks should correctly identify expired entries" name="CacheService cache freshness checks should correctly identify expired entries" time="0.007">
+    </testcase>
+    <testcase classname="CacheService key generation should create entity key" name="CacheService key generation should create entity key" time="0.002">
+    </testcase>
+    <testcase classname="CacheService key generation should create index key" name="CacheService key generation should create index key" time="0.001">
+    </testcase>
+    <testcase classname="CacheService key generation should create query key" name="CacheService key generation should create query key" time="0.007">
+    </testcase>
+  </testsuite>
+  <testsuite name="ConnectionManager" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:55" time="14.774" tests="6">
+    <testcase classname="ConnectionManager binds and retrieves sessions" name="ConnectionManager binds and retrieves sessions" time="0.157">
+    </testcase>
+    <testcase classname="ConnectionManager releases sessions and decrements counts" name="ConnectionManager releases sessions and decrements counts" time="0.004">
+    </testcase>
+    <testcase classname="ConnectionManager cleans up stale sessions" name="ConnectionManager cleans up stale sessions" time="0.023">
+    </testcase>
+    <testcase classname="ConnectionManager handles constructor with custom TTL" name="ConnectionManager handles constructor with custom TTL" time="0.001">
+    </testcase>
+    <testcase classname="ConnectionManager updates lastSeen when getting session" name="ConnectionManager updates lastSeen when getting session" time="0.003">
+    </testcase>
+    <testcase classname="ConnectionManager handles session cleanup with exact TTL" name="ConnectionManager handles session cleanup with exact TTL" time="0.062">
+    </testcase>
+  </testsuite>
+  <testsuite name="RoutingVersionManager" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:56" time="18.476" tests="28">
+    <testcase classname="RoutingVersionManager getCurrentVersion should return current version from cache" name="RoutingVersionManager getCurrentVersion should return current version from cache" time="0.154">
+    </testcase>
+    <testcase classname="RoutingVersionManager getCurrentVersion should return 1 when no version exists" name="RoutingVersionManager getCurrentVersion should return 1 when no version exists" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyByVersion should return policy for valid version" name="RoutingVersionManager getPolicyByVersion should return policy for valid version" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyByVersion should return null for non-existent version" name="RoutingVersionManager getPolicyByVersion should return null for non-existent version" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager createNewVersion should throw error for invalid policy" name="RoutingVersionManager createNewVersion should throw error for invalid policy" time="0.08">
+    </testcase>
+    <testcase classname="RoutingVersionManager createNewVersion should create version with description" name="RoutingVersionManager createNewVersion should create version with description" time="0.005">
+    </testcase>
+    <testcase classname="RoutingVersionManager updateCurrentPolicy should update current policy with versioning" name="RoutingVersionManager updateCurrentPolicy should update current policy with versioning" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager rollbackToVersion should rollback to specified version" name="RoutingVersionManager rollbackToVersion should rollback to specified version" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager rollbackToVersion should throw error for non-existent version" name="RoutingVersionManager rollbackToVersion should throw error for non-existent version" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager listVersions should list all policy versions" name="RoutingVersionManager listVersions should list all policy versions" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager listVersions should handle missing version info gracefully" name="RoutingVersionManager listVersions should handle missing version info gracefully" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager listVersions should handle when current version is 0 by returning empty list" name="RoutingVersionManager listVersions should handle when current version is 0 by returning empty list" time="0">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should calculate policy differences" name="RoutingVersionManager getPolicyDiff should calculate policy differences" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should yield no changed tenants when shards are identical" name="RoutingVersionManager getPolicyDiff should yield no changed tenants when shards are identical" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should handle range additions and removals" name="RoutingVersionManager getPolicyDiff should handle range additions and removals" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should handle identical ranges" name="RoutingVersionManager getPolicyDiff should handle identical ranges" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should handle range prefix and shard comparison" name="RoutingVersionManager getPolicyDiff should handle range prefix and shard comparison" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should handle empty tenant objects" name="RoutingVersionManager getPolicyDiff should handle empty tenant objects" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff should return complete PolicyDiff structure" name="RoutingVersionManager getPolicyDiff should return complete PolicyDiff structure" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager PolicyVersionInfo should handle version info with author field" name="RoutingVersionManager PolicyVersionInfo should handle version info with author field" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager updateCurrentPolicy incompatibility should throw when new policy is incompatible with current" name="RoutingVersionManager updateCurrentPolicy incompatibility should throw when new policy is incompatible with current" time="0.002">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff errors and shard availability should throw when one version is missing" name="RoutingVersionManager getPolicyDiff errors and shard availability should throw when one version is missing" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff errors and shard availability validatePolicyCompatibility honors MAX_SHARD_SIZE_GB" name="RoutingVersionManager getPolicyDiff errors and shard availability validatePolicyCompatibility honors MAX_SHARD_SIZE_GB" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getPolicyDiff errors and shard availability validatePolicyCompatibility fails on bad range shard" name="RoutingVersionManager getPolicyDiff errors and shard availability validatePolicyCompatibility fails on bad range shard" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getAvailableShards default behavior (indirect) should default to 4 shards when MAX_SHARD_SIZE_GB is invalid or zero" name="RoutingVersionManager getAvailableShards default behavior (indirect) should default to 4 shards when MAX_SHARD_SIZE_GB is invalid or zero" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager getAvailableShards default behavior (indirect) should also accept tenants on highest default shard (shard_3)" name="RoutingVersionManager getAvailableShards default behavior (indirect) should also accept tenants on highest default shard (shard_3)" time="0">
+    </testcase>
+    <testcase classname="RoutingVersionManager validatePolicyCompatibility warnings should warn about unknown shards for tenants" name="RoutingVersionManager validatePolicyCompatibility warnings should warn about unknown shards for tenants" time="0.001">
+    </testcase>
+    <testcase classname="RoutingVersionManager validatePolicyCompatibility warnings should warn about unknown shards for ranges" name="RoutingVersionManager validatePolicyCompatibility warnings should warn about unknown shards for ranges" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="TablePolicyParser" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:55" time="20.194" tests="43">
+    <testcase classname="TablePolicyParser interface compliance should implement ITablePolicyParser interface methods" name="TablePolicyParser interface compliance should implement ITablePolicyParser interface methods" time="2.428">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should parse valid YAML table policy" name="TablePolicyParser parseTablePolicy should parse valid YAML table policy" time="0.014">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should map always_strong_columns when present" name="TablePolicyParser parseTablePolicy should map always_strong_columns when present" time="0.003">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should handle minimal YAML policy" name="TablePolicyParser parseTablePolicy should handle minimal YAML policy" time="0.004">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should use default values for missing fields" name="TablePolicyParser parseTablePolicy should use default values for missing fields" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should default ttlMs when cache exists but ttl_ms is missing" name="TablePolicyParser parseTablePolicy should default ttlMs when cache exists but ttl_ms is missing" time="0.003">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should throw error for invalid YAML" name="TablePolicyParser parseTablePolicy should throw error for invalid YAML" time="0.07">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should handle YAML parser errors gracefully" name="TablePolicyParser parseTablePolicy should handle YAML parser errors gracefully" time="0.003">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should throw error when YAML parser is unavailable for table policy" name="TablePolicyParser parseTablePolicy should throw error when YAML parser is unavailable for table policy" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser parseTablePolicy should throw error when YAML parser is unavailable for routing policy" name="TablePolicyParser parseTablePolicy should throw error when YAML parser is unavailable for routing policy" time="0.003">
+    </testcase>
+    <testcase classname="TablePolicyParser parseRoutingPolicy should parse valid YAML routing policy" name="TablePolicyParser parseRoutingPolicy should parse valid YAML routing policy" time="0.008">
+    </testcase>
+    <testcase classname="TablePolicyParser parseRoutingPolicy should handle empty routing policy" name="TablePolicyParser parseRoutingPolicy should handle empty routing policy" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser parseRoutingPolicy should throw error for invalid routing policy" name="TablePolicyParser parseRoutingPolicy should throw error for invalid routing policy" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser parseRoutingPolicy should handle YAML parser errors in routing policy" name="TablePolicyParser parseRoutingPolicy should handle YAML parser errors in routing policy" time="0.006">
+    </testcase>
+    <testcase classname="TablePolicyParser parseRoutingPolicy should throw when YAML parser is unavailable for routing policy" name="TablePolicyParser parseRoutingPolicy should throw when YAML parser is unavailable for routing policy" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should validate correct table policy" name="TablePolicyParser validateTablePolicy should validate correct table policy" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject invalid cache mode" name="TablePolicyParser validateTablePolicy should reject invalid cache mode" time="0">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject negative SWR" name="TablePolicyParser validateTablePolicy should reject negative SWR" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject negative TTL" name="TablePolicyParser validateTablePolicy should reject negative TTL" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject missing primary key" name="TablePolicyParser validateTablePolicy should reject missing primary key" time="0">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject invalid primary key type" name="TablePolicyParser validateTablePolicy should reject invalid primary key type" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateTablePolicy should reject missing cache" name="TablePolicyParser validateTablePolicy should reject missing cache" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should validate correct routing policy" name="TablePolicyParser validateRoutingPolicy should validate correct routing policy" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject invalid version" name="TablePolicyParser validateRoutingPolicy should reject invalid version" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject invalid tenants object" name="TablePolicyParser validateRoutingPolicy should reject invalid tenants object" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject invalid ranges array" name="TablePolicyParser validateRoutingPolicy should reject invalid ranges array" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject ranges with missing prefix" name="TablePolicyParser validateRoutingPolicy should reject ranges with missing prefix" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject ranges with missing shard" name="TablePolicyParser validateRoutingPolicy should reject ranges with missing shard" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should validate ranges with all required fields" name="TablePolicyParser validateRoutingPolicy should validate ranges with all required fields" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject when ranges is not array (explicit branch)" name="TablePolicyParser validateRoutingPolicy should reject when ranges is not array (explicit branch)" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should handle empty ranges array" name="TablePolicyParser validateRoutingPolicy should handle empty ranges array" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject ranges with empty prefix" name="TablePolicyParser validateRoutingPolicy should reject ranges with empty prefix" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser validateRoutingPolicy should reject ranges with empty shard" name="TablePolicyParser validateRoutingPolicy should reject ranges with empty shard" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser getDefaultRoutingPolicy should return default routing policy" name="TablePolicyParser getDefaultRoutingPolicy should return default routing policy" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser substituteEnvironmentVariables should handle arrays" name="TablePolicyParser substituteEnvironmentVariables should handle arrays" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser substituteEnvironmentVariables should handle objects" name="TablePolicyParser substituteEnvironmentVariables should handle objects" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser substituteEnvironmentVariables should handle nested objects and arrays" name="TablePolicyParser substituteEnvironmentVariables should handle nested objects and arrays" time="0">
+    </testcase>
+    <testcase classname="TablePolicyParser substituteEnvironmentVariables should handle primitive values" name="TablePolicyParser substituteEnvironmentVariables should handle primitive values" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser substituteEnvironmentVariables should handle environment variable patterns in strings" name="TablePolicyParser substituteEnvironmentVariables should handle environment variable patterns in strings" time="0.001">
+    </testcase>
+    <testcase classname="TablePolicyParser YAML parser fallback should handle YAML parser unavailability" name="TablePolicyParser YAML parser fallback should handle YAML parser unavailability" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser YAML parser fallback should handle YAML parser fallback with invalid content" name="TablePolicyParser YAML parser fallback should handle YAML parser fallback with invalid content" time="0.002">
+    </testcase>
+    <testcase classname="TablePolicyParser YAML parser fallback should warn and use fallback parser when yaml package is unavailable" name="TablePolicyParser YAML parser fallback should warn and use fallback parser when yaml package is unavailable" time="0.003">
+    </testcase>
+    <testcase classname="TablePolicyParser YAML parser fallback should execute initializeYamlParser fallback path directly" name="TablePolicyParser YAML parser fallback should execute initializeYamlParser fallback path directly" time="0.008">
+    </testcase>
+  </testsuite>
+  <testsuite name="SQLCompatibilityService" errors="0" failures="0" skipped="0" timestamp="2025-09-03T00:32:57" time="21.653" tests="47">
+    <testcase classname="SQLCompatibilityService transpileSQL should transpile basic SELECT query without changes" name="SQLCompatibilityService transpileSQL should transpile basic SELECT query without changes" time="0.7">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should transpile MySQL CONCAT to SQLite concatenation" name="SQLCompatibilityService transpileSQL should transpile MySQL CONCAT to SQLite concatenation" time="0.007">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should transpile MySQL NOW() to SQLite datetime" name="SQLCompatibilityService transpileSQL should transpile MySQL NOW() to SQLite datetime" time="0.015">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should transpile MySQL data types to SQLite equivalents" name="SQLCompatibilityService transpileSQL should transpile MySQL data types to SQLite equivalents" time="0.006">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should handle LIMIT with OFFSET syntax" name="SQLCompatibilityService transpileSQL should handle LIMIT with OFFSET syntax" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should parse strong consistency hint" name="SQLCompatibilityService transpileSQL should parse strong consistency hint" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should parse bounded consistency hint" name="SQLCompatibilityService transpileSQL should parse bounded consistency hint" time="0.006">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should parse weak consistency hint" name="SQLCompatibilityService transpileSQL should parse weak consistency hint" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should transpile transaction statements" name="SQLCompatibilityService transpileSQL should transpile transaction statements" time="0.002">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileSQL should handle complex queries with multiple functions" name="SQLCompatibilityService transpileSQL should handle complex queries with multiple functions" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService parseQueryHints should return empty hints for queries without hints" name="SQLCompatibilityService parseQueryHints should return empty hints for queries without hints" time="0.002">
+    </testcase>
+    <testcase classname="SQLCompatibilityService parseQueryHints should handle multiple hints (last one wins)" name="SQLCompatibilityService parseQueryHints should handle multiple hints (last one wins)" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService parseQueryHints should handle malformed hints gracefully" name="SQLCompatibilityService parseQueryHints should handle malformed hints gracefully" time="0.006">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDDL should transpile CREATE TABLE with MySQL types" name="SQLCompatibilityService transpileDDL should transpile CREATE TABLE with MySQL types" time="0.005">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDDL should handle ALTER TABLE ADD COLUMN" name="SQLCompatibilityService transpileDDL should handle ALTER TABLE ADD COLUMN" time="0.009">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDDL should handle CREATE INDEX" name="SQLCompatibilityService transpileDDL should handle CREATE INDEX" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDDL should handle DROP TABLE" name="SQLCompatibilityService transpileDDL should handle DROP TABLE" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDML should transpile INSERT with MySQL functions" name="SQLCompatibilityService transpileDML should transpile INSERT with MySQL functions" time="0.006">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDML should transpile UPDATE with MySQL functions" name="SQLCompatibilityService transpileDML should transpile UPDATE with MySQL functions" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService transpileDML should transpile DELETE with LIMIT" name="SQLCompatibilityService transpileDML should transpile DELETE with LIMIT" time="0.005">
+    </testcase>
+    <testcase classname="SQLCompatibilityService prepareStatement should handle positional parameters" name="SQLCompatibilityService prepareStatement should handle positional parameters" time="0.008">
+    </testcase>
+    <testcase classname="SQLCompatibilityService prepareStatement should handle named parameters (basic conversion)" name="SQLCompatibilityService prepareStatement should handle named parameters (basic conversion)" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService prepareStatement should handle mixed parameter styles" name="SQLCompatibilityService prepareStatement should handle mixed parameter styles" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService validateSQL should not throw for valid SQL" name="SQLCompatibilityService validateSQL should not throw for valid SQL" time="0.049">
+    </testcase>
+    <testcase classname="SQLCompatibilityService validateSQL should handle potentially unsupported features gracefully" name="SQLCompatibilityService validateSQL should handle potentially unsupported features gracefully" time="0.002">
+    </testcase>
+    <testcase classname="SQLCompatibilityService extractTableName should extract table name from SELECT" name="SQLCompatibilityService extractTableName should extract table name from SELECT" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService extractTableName should extract table name from INSERT" name="SQLCompatibilityService extractTableName should extract table name from INSERT" time="0.007">
+    </testcase>
+    <testcase classname="SQLCompatibilityService extractTableName should extract table name from UPDATE" name="SQLCompatibilityService extractTableName should extract table name from UPDATE" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService extractTableName should extract table name from DELETE" name="SQLCompatibilityService extractTableName should extract table name from DELETE" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService extractTableName should extract table name from CREATE TABLE" name="SQLCompatibilityService extractTableName should extract table name from CREATE TABLE" time="0.002">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify SELECT statements" name="SQLCompatibilityService getStatementType should identify SELECT statements" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify INSERT statements" name="SQLCompatibilityService getStatementType should identify INSERT statements" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify UPDATE statements" name="SQLCompatibilityService getStatementType should identify UPDATE statements" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify DELETE statements" name="SQLCompatibilityService getStatementType should identify DELETE statements" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify DDL statements" name="SQLCompatibilityService getStatementType should identify DDL statements" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify ALTER statements as DDL" name="SQLCompatibilityService getStatementType should identify ALTER statements as DDL" time="0.001">
+    </testcase>
+    <testcase classname="SQLCompatibilityService getStatementType should identify DROP statements as DDL" name="SQLCompatibilityService getStatementType should identify DROP statements as DDL" time="0">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle empty SQL gracefully" name="SQLCompatibilityService edge cases and error handling should handle empty SQL gracefully" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle SQL with only whitespace" name="SQLCompatibilityService edge cases and error handling should handle SQL with only whitespace" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle malformed function calls" name="SQLCompatibilityService edge cases and error handling should handle malformed function calls" time="0.005">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle nested function calls" name="SQLCompatibilityService edge cases and error handling should handle nested function calls" time="0.004">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle complex WHERE clauses with functions" name="SQLCompatibilityService edge cases and error handling should handle complex WHERE clauses with functions" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle JOIN queries" name="SQLCompatibilityService edge cases and error handling should handle JOIN queries" time="0.002">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle subqueries" name="SQLCompatibilityService edge cases and error handling should handle subqueries" time="0.012">
+    </testcase>
+    <testcase classname="SQLCompatibilityService edge cases and error handling should handle UNION queries" name="SQLCompatibilityService edge cases and error handling should handle UNION queries" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService performance and large queries should handle large SQL queries" name="SQLCompatibilityService performance and large queries should handle large SQL queries" time="0.003">
+    </testcase>
+    <testcase classname="SQLCompatibilityService performance and large queries should handle queries with many parameters" name="SQLCompatibilityService performance and large queries should handle queries with many parameters" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>

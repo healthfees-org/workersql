@@ -33,4 +33,17 @@ module.exports = {
     '<rootDir>/src/services/ConfigService.ts',
     '<rootDir>/src/gateway.ts',
   ],
+  // Add reporters for detailed logging
+  reporters: [
+    'default',
+    ['jest-junit', {
+      outputDirectory: 'tests/logs',
+      outputName: 'jest-junit.xml',
+      suiteName: 'WorkerSQL Jest Tests'
+    }]
+  ],
+  // Verbose output
+  verbose: true,
+  // Test results processor for logging
+  testResultsProcessor: 'jest-junit'
 };

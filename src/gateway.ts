@@ -3,6 +3,7 @@ import { ConfigService } from './services/ConfigService';
 import { RouterService } from './services/RouterService';
 import { CircuitBreakerService } from './services/CircuitBreakerService';
 import { ConnectionManager } from './services/ConnectionManager';
+import { SQLCompatibilityService } from './services/SQLCompatibilityService';
 import { WorkerResponse, SQLQuery, CloudflareEnvironment, QueryRequest } from './types';
 
 /**
@@ -37,6 +38,7 @@ export class EdgeSQLGateway {
   private routerService: RouterService;
   private breaker: CircuitBreakerService;
   private connections: ConnectionManager;
+  private sqlCompatibility: SQLCompatibilityService;
 
   constructor(
     private env: CloudflareEnvironment,
@@ -47,6 +49,7 @@ export class EdgeSQLGateway {
     this.routerService = new RouterService(this.env);
     this.breaker = new CircuitBreakerService();
     this.connections = new ConnectionManager();
+    this.sqlCompatibility = new SQLCompatibilityService(this.env);
   }
 
   /**
@@ -222,30 +225,19 @@ export class EdgeSQLGateway {
         return null;
       }
 
-      // Basic SQL type detection
-      const sqlUpper = body.sql.trim().toUpperCase();
-      let type: SQLQuery['type'];
+      // Transpile MySQL SQL to SQLite-compatible SQL
+      const { sql: transpiledSQL, hints } = this.sqlCompatibility.transpileSQL(body.sql);
 
-      if (sqlUpper.startsWith('SELECT')) {
-        type = 'SELECT';
-      } else if (sqlUpper.startsWith('INSERT')) {
-        type = 'INSERT';
-      } else if (sqlUpper.startsWith('UPDATE')) {
-        type = 'UPDATE';
-      } else if (sqlUpper.startsWith('DELETE')) {
-        type = 'DELETE';
-      } else if (sqlUpper.match(/^(CREATE|ALTER|DROP|TRUNCATE)/)) {
-        type = 'DDL';
-      } else {
-        return null;
-      }
+      // Basic SQL type detection
+      const type = this.sqlCompatibility.getStatementType(transpiledSQL);
 
       return {
-        sql: body.sql,
+        sql: transpiledSQL,
         params: body.params || [],
         type,
-        tableName: this.extractTableName(body.sql),
+        tableName: this.sqlCompatibility.extractTableName(transpiledSQL),
         timestamp: Date.now(),
+        hints,
       };
     } catch {
       return null;
@@ -283,7 +275,11 @@ export class EdgeSQLGateway {
     const startTime = Date.now();
 
     // Route to appropriate shard using RouterService
-    const queryRequest: QueryRequest = { sql: query.sql } as QueryRequest;
+    const queryRequest: QueryRequest = {
+      sql: query.sql,
+      params: query.params,
+      ...(query.hints && { hints: query.hints }),
+    };
     const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
     const shardId = targetInfo.shardId;
     const shard = this.env.SHARD.get(targetInfo.durableObjectId);
@@ -323,7 +319,11 @@ export class EdgeSQLGateway {
     const startTime = Date.now();
 
     // Route to appropriate shard using RouterService
-    const queryRequest: QueryRequest = { sql: query.sql } as QueryRequest;
+    const queryRequest: QueryRequest = {
+      sql: query.sql,
+      params: query.params,
+      ...(query.hints && { hints: query.hints }),
+    };
     const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
     const shardId = targetInfo.shardId;
     const shard = this.env.SHARD.get(targetInfo.durableObjectId);
@@ -375,7 +375,14 @@ export class EdgeSQLGateway {
       shard.fetch(
         new Request('https://internal/ddl', {
           method: 'POST',
-          body: JSON.stringify({ query, tenantId }),
+          body: JSON.stringify({
+            query: {
+              sql: query.sql,
+              params: query.params,
+              ...(query.hints && { hints: query.hints }),
+            },
+            tenantId,
+          }),
         })
       )
     );

@@ -33,6 +33,7 @@ tests/fixtures/temp/
 *.db
 *.sqlite
 *.sqlite3
+tests/logs/*
 
 # Miniflare
 .mf/

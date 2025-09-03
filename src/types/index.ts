@@ -185,6 +185,7 @@ export interface SQLQuery {
   type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'DDL';
   tableName: string;
   timestamp: number;
+  hints?: QueryHints;
 }
 
 export interface ShardBinding {
