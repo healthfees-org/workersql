@@ -46,7 +46,7 @@ describe('ConnectionManager (extras)', () => {
     expect(retrieved?.shardId).toBe('shard_1');
   });
 
-  it('cleanup removes stale sessions and decrements connection counts', () => {
+  it('cleanup removes stale sessions and decrements connection counts', async () => {
     const cm = new ConnectionManager(10); // Very short TTL
     cm.bindSession('s1', 't', 'shard_1');
     cm.bindSession('s2', 't', 'shard_2');
@@ -55,12 +55,11 @@ describe('ConnectionManager (extras)', () => {
     expect(cm.getShardConnections('shard_2')).toBe(1);
 
     // Wait for sessions to become stale
-    setTimeout(() => {
-      cm.cleanup();
-      expect(cm.getSession('s1')).toBeUndefined();
-      expect(cm.getSession('s2')).toBeUndefined();
-      expect(cm.getShardConnections('shard_1')).toBe(0);
-      expect(cm.getShardConnections('shard_2')).toBe(0);
-    }, 15);
+    await new Promise((r) => setTimeout(r, 20));
+    cm.cleanup();
+    expect(cm.getSession('s1')).toBeUndefined();
+    expect(cm.getSession('s2')).toBeUndefined();
+    expect(cm.getShardConnections('shard_1')).toBe(0);
+    expect(cm.getShardConnections('shard_2')).toBe(0);
   });
 });

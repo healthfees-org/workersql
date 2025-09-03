@@ -124,24 +124,60 @@ export class EdgeSQLGateway {
 
     // Derive or receive a session id from headers; fallback to random
     const sessionId = request.headers.get('x-session-id') || crypto.randomUUID();
+    const transactionId = request.headers.get('x-transaction-id');
 
     // For initial bind, pick shard based on tenant hash
     const shardId = this.getPrimaryShardForTenant(auth.tenantId);
-    this.connections.bindSession(sessionId, auth.tenantId, shardId);
+    this.connections.bindSession(sessionId, auth.tenantId, shardId, transactionId || undefined);
 
     // Periodic cleanup of stale sessions
     this.ctx.waitUntil(Promise.resolve().then(() => this.connections.cleanup()));
 
-    // Simple message protocol: { sql, params, type }
+    // Enhanced message protocol: { sql, params, type, action }
     server.addEventListener('message', async (evt: MessageEvent) => {
       try {
-        const payload = JSON.parse(String(evt.data)) as { sql: string; params?: unknown[] };
+        const payload = JSON.parse(String(evt.data)) as {
+          sql?: string;
+          params?: unknown[];
+          action?: 'begin' | 'commit' | 'rollback';
+          transactionId?: string;
+        };
+
+        // Handle transaction control messages
+        if (payload.action) {
+          const success = this.handleTransactionAction(
+            sessionId,
+            payload.action,
+            payload.transactionId
+          );
+          server.send(
+            JSON.stringify({
+              success,
+              action: payload.action,
+              transactionId: payload.transactionId,
+            })
+          );
+          return;
+        }
+
+        // Handle SQL queries
+        if (!payload.sql) {
+          server.send(
+            JSON.stringify({
+              success: false,
+              error: 'Missing SQL query',
+            })
+          );
+          return;
+        }
+
         const sqlUpper = payload.sql?.trim().toUpperCase() || '';
         const type: SQLQuery['type'] = sqlUpper.startsWith('SELECT')
           ? 'SELECT'
           : sqlUpper.match(/^(INSERT|UPDATE|DELETE)/)
             ? (sqlUpper.split(' ')[0] as any)
             : 'DDL';
+
         const query: SQLQuery = {
           sql: payload.sql,
           params: payload.params || [],
@@ -151,8 +187,17 @@ export class EdgeSQLGateway {
         };
 
         const shardInfo = this.connections.getSession(sessionId);
-        const routedShardId =
-          shardInfo?.shardId || this.getShardForTable(auth.tenantId!, query.tableName);
+        if (!shardInfo) {
+          server.send(
+            JSON.stringify({
+              success: false,
+              error: 'Session not found',
+            })
+          );
+          return;
+        }
+
+        const routedShardId = shardInfo.shardId;
         const target = this.env.SHARD.get(this.env.SHARD.idFromName(routedShardId));
 
         const res = await this.breaker.execute(routedShardId, async () =>
@@ -160,7 +205,14 @@ export class EdgeSQLGateway {
             new Request(
               'https://internal/' +
                 (type === 'SELECT' ? 'query' : type === 'DDL' ? 'ddl' : 'mutation'),
-              { method: 'POST', body: JSON.stringify({ query, tenantId: auth.tenantId }) }
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  query,
+                  tenantId: auth.tenantId,
+                  transactionId: shardInfo.transactionId,
+                }),
+              }
             )
           )
         );
@@ -402,17 +454,6 @@ export class EdgeSQLGateway {
   }
 
   /**
-   * Determine which shard should handle a specific table for a tenant
-   */
-  private getShardForTable(tenantId: string, tableName: string): string {
-    // Simple hash-based sharding for now
-    const shardHash = this.hashString(`${tenantId}:${tableName}`);
-    const shardCount = this.configService.getShardCount();
-    const shardIndex = shardHash % shardCount;
-    return `shard_${shardIndex}`;
-  }
-
-  /**
    * Get primary shard for a tenant (for DDL operations)
    */
   private getPrimaryShardForTenant(tenantId: string): string {
@@ -462,13 +503,37 @@ export class EdgeSQLGateway {
   }
 
   /**
+   * Handle transaction control actions (BEGIN, COMMIT, ROLLBACK)
+   */
+  private handleTransactionAction(
+    sessionId: string,
+    action: 'begin' | 'commit' | 'rollback',
+    transactionId?: string
+  ): boolean {
+    switch (action) {
+      case 'begin':
+        if (!transactionId) {
+          transactionId = crypto.randomUUID();
+        }
+        return this.connections.startTransaction(sessionId, transactionId);
+
+      case 'commit':
+      case 'rollback':
+        return this.connections.endTransaction(sessionId);
+
+      default:
+        return false;
+    }
+  }
+
+  /**
    * Get CORS headers for responses
    */
   private getCORSHeaders(): Record<string, string> {
     return {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Session-Id, X-Transaction-Id',
       'Access-Control-Max-Age': '86400',
     };
   }
