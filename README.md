@@ -368,23 +368,22 @@ For enterprise support, SLA guarantees, and custom development:
 
 ## Roadmap
 
-### Current (Q4 2024)
+### Current (Q3 2025)
 - ✅ Core SQL compatibility
 - ✅ Authentication & authorization
 - ✅ Multi-tenant isolation
 - ✅ Real-time caching
 
-### Upcoming (Q3 2025)
+### Upcoming (Q4 2025)
 - 🔄 Advanced analytics queries
 - 🔄 Cross-region replication
 - 🔄 GraphQL API support
 - 🔄 Enhanced monitoring dashboard
 
-### Future (Q4+ 2025)
+### Future (Q1+ 2026)
 - 📋 Full-text search capabilities
 - 📋 Advanced encryption features
 - 📋 Machine learning integrations
-- 📋 Multi-cloud deployment options
 
 ## Acknowledgments
 
