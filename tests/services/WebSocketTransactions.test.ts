@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EdgeSQLGateway } from '../../src/gateway';
 
 describe('EdgeSQLGateway - WebSocket Transactions', () => {
@@ -9,11 +9,11 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
   beforeEach(() => {
     mockEnv = {
       APP_CACHE: {},
-      DB_EVENTS: { send: jest.fn() },
+      DB_EVENTS: { send: vi.fn() },
       SHARD: {
-        idFromName: jest.fn().mockReturnValue('shard_id'),
-        get: jest.fn().mockReturnValue({
-          fetch: jest.fn(
+        idFromName: vi.fn().mockReturnValue('shard_id'),
+        get: vi.fn().mockReturnValue({
+          fetch: vi.fn(
             async (_req: any) =>
               ({
                 json: async () => ({ success: true, data: [] }),
@@ -24,7 +24,7 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
     };
 
     mockCtx = {
-      waitUntil: jest.fn(),
+      waitUntil: vi.fn(),
     };
 
     gateway = new EdgeSQLGateway(mockEnv, mockCtx);
@@ -33,7 +33,7 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
   describe('Transaction Action Handling', () => {
     it('handles BEGIN transaction', () => {
       const mockConnectionManager = (gateway as any).connections;
-      jest.spyOn(mockConnectionManager, 'startTransaction').mockReturnValue(true);
+      vi.spyOn(mockConnectionManager, 'startTransaction').mockReturnValue(true);
 
       const result = (gateway as any).handleTransactionAction('sess1', 'begin', 'tx_123');
       expect(result).toBe(true);
@@ -42,7 +42,7 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
 
     it('generates transaction ID if not provided for BEGIN', () => {
       const mockConnectionManager = (gateway as any).connections;
-      jest.spyOn(mockConnectionManager, 'startTransaction').mockReturnValue(true);
+      vi.spyOn(mockConnectionManager, 'startTransaction').mockReturnValue(true);
 
       const result = (gateway as any).handleTransactionAction('sess1', 'begin');
       expect(result).toBe(true);
@@ -54,7 +54,7 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
 
     it('handles COMMIT transaction', () => {
       const mockConnectionManager = (gateway as any).connections;
-      jest.spyOn(mockConnectionManager, 'endTransaction').mockReturnValue(true);
+      vi.spyOn(mockConnectionManager, 'endTransaction').mockReturnValue(true);
 
       const result = (gateway as any).handleTransactionAction('sess1', 'commit');
       expect(result).toBe(true);
@@ -63,7 +63,7 @@ describe('EdgeSQLGateway - WebSocket Transactions', () => {
 
     it('handles ROLLBACK transaction', () => {
       const mockConnectionManager = (gateway as any).connections;
-      jest.spyOn(mockConnectionManager, 'endTransaction').mockReturnValue(true);
+      vi.spyOn(mockConnectionManager, 'endTransaction').mockReturnValue(true);
 
       const result = (gateway as any).handleTransactionAction('sess1', 'rollback');
       expect(result).toBe(true);

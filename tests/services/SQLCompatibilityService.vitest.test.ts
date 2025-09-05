@@ -152,7 +152,7 @@ describe('SQLCompatibilityService (Vitest)', () => {
         { mysql: 'NOW()', sqlite: "DATETIME('now')" },
         { mysql: 'CURDATE()', sqlite: "DATE('now')" },
         { mysql: 'CURTIME()', sqlite: "TIME('now')" },
-        { mysql: 'YEAR(date)', sqlite: "STRFTIME('%Y', date)" },
+        { mysql: 'YEAR(date)', sqlite: "STRFTIME('%Y', DATE)" },
         { mysql: 'MONTH(date)', sqlite: "STRFTIME('%m', date)" },
         { mysql: 'DAY(date)', sqlite: "STRFTIME('%d', date)" },
       ];

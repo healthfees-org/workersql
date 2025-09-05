@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { SQLCompatibilityService } from '../../src/services/SQLCompatibilityService';
 import type { CloudflareEnvironment } from '../../src/types';
 

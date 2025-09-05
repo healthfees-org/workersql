@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ConnectionManager } from '../../src/services/ConnectionManager';
 
 describe('ConnectionManager', () => {
@@ -129,7 +129,7 @@ describe('ConnectionManager', () => {
   describe('Cleanup', () => {
     it('cleans up stale sessions', async () => {
       cm.bindSession('s1', 't', 'shard_2');
-      await new Promise((r) => setTimeout(r, 15));
+      await new Promise((r) => setTimeout(r, 1100)); // Wait longer than 1 second TTL
       cm.cleanup();
       expect(cm.getSession('s1')).toBeUndefined();
       expect(cm.getShardConnections('shard_2')).toBe(0);

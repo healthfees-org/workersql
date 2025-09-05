@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 import { ConnectionManager } from '../../src/services/ConnectionManager';
 
 describe('ConnectionManager (extras)', () => {

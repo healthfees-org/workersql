@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TablePolicyParser } from '../../src/services/TablePolicyParser';
 
 describe('TablePolicyParser', () => {
@@ -506,7 +506,7 @@ cache:
     });
 
     it('should warn and use fallback parser when yaml package is unavailable', async () => {
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const newParser = new TablePolicyParser();
       (newParser as any).yamlParser = {
@@ -530,7 +530,7 @@ cache:
     it('should execute initializeYamlParser fallback path directly', async () => {
       (globalThis as any).__FORCE_YAML_IMPORT_FAIL = true;
 
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const newParser = new TablePolicyParser();
       // Call the private initializer explicitly to ensure fallback lines execute

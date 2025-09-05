@@ -15,6 +15,15 @@ export interface ConnectionPool {
   waitingQueue: Array<(conn: WebSocket) => void>;
 }
 
+type SocketFactory = (url: string) => WebSocket;
+
+export interface ConnectionManagerOptions {
+  // Resolve the websocket URL for a given shard
+  endpointResolver?: (shardId: string) => string;
+  // Factory to construct a WebSocket (useful for environments/tests)
+  socketFactory?: SocketFactory;
+}
+
 export class ConnectionManager {
   private sessions = new Map<string, SessionInfo>(); // sessionId -> info
   private shardConnectionCounts = new Map<string, number>();
@@ -22,11 +31,21 @@ export class ConnectionManager {
   // In Node (Jest), setInterval returns a Timer object that can be unref()'d
   // to avoid keeping the event loop alive; in browsers it is a number.
   private cleanupInterval?: any;
+  private endpointResolver: (shardId: string) => string;
+  private socketFactory: SocketFactory;
+  private _ttlMs: number;
+  private _maxConnectionsPerShard: number;
 
   constructor(
-    private ttlMs: number = 10 * 60 * 1000, // 10 minutes default
-    private maxConnectionsPerShard: number = 10
+    ttlMs: number = 10 * 60 * 1000, // 10 minutes default
+    maxConnectionsPerShard: number = 10,
+    options?: ConnectionManagerOptions
   ) {
+    this._ttlMs = ttlMs;
+    this._maxConnectionsPerShard = maxConnectionsPerShard;
+    this.endpointResolver =
+      options?.endpointResolver ?? ((sid) => this.buildShardWebSocketUrl(sid));
+    this.socketFactory = options?.socketFactory ?? ((url) => new WebSocket(url));
     this.startCleanupInterval();
   }
 
@@ -66,7 +85,7 @@ export class ConnectionManager {
     if (!this.connectionPools.has(shardId)) {
       this.connectionPools.set(shardId, {
         shardId,
-        maxConnections: this.maxConnectionsPerShard,
+        maxConnections: this._maxConnectionsPerShard,
         activeConnections: 0,
         idleConnections: [],
         waitingQueue: [],
@@ -85,7 +104,9 @@ export class ConnectionManager {
   // Enhanced release with connection pool management
   releaseSession(sessionId: string): void {
     const info = this.sessions.get(sessionId);
-    if (!info) return;
+    if (!info) {
+      return;
+    }
 
     // If in transaction, don't release immediately
     if (info.isInTransaction) {
@@ -106,7 +127,9 @@ export class ConnectionManager {
   // Transaction management
   startTransaction(sessionId: string, transactionId: string): boolean {
     const info = this.sessions.get(sessionId);
-    if (!info) return false;
+    if (!info) {
+      return false;
+    }
 
     if (transactionId) {
       info.transactionId = transactionId;
@@ -121,7 +144,9 @@ export class ConnectionManager {
 
   endTransaction(sessionId: string): boolean {
     const info = this.sessions.get(sessionId);
-    if (!info || !info.isInTransaction) return false;
+    if (!info || !info.isInTransaction) {
+      return false;
+    }
 
     delete info.transactionId;
     info.isInTransaction = false;
@@ -137,7 +162,9 @@ export class ConnectionManager {
   // Connection pooling methods
   async acquireConnection(shardId: string): Promise<WebSocket | null> {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return null;
+    if (!pool) {
+      return null;
+    }
 
     // Try to get idle connection
     if (pool.idleConnections.length > 0) {
@@ -160,7 +187,9 @@ export class ConnectionManager {
 
   releaseConnection(shardId: string, connection: WebSocket): void {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     pool.activeConnections = Math.max(0, pool.activeConnections - 1);
 
@@ -183,7 +212,9 @@ export class ConnectionManager {
 
   private returnConnectionToPool(shardId: string): void {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     // Notify waiting requests if we have idle connections
     if (pool.idleConnections.length > 0 && pool.waitingQueue.length > 0) {
@@ -195,9 +226,10 @@ export class ConnectionManager {
   }
 
   private createNewConnection(shardId: string): WebSocket {
-    // This would create a WebSocket connection to the shard
-    // For now, return a mock WebSocket
-    const ws = new WebSocket(`wss://shard-${shardId}.workersql.dev`);
+    // Establish a WebSocket connection to the shard endpoint
+    const url = this.endpointResolver(shardId);
+    const ws = this.socketFactory(url);
+
     ws.addEventListener('close', () => {
       this.handleConnectionClose(shardId, ws);
     });
@@ -207,13 +239,21 @@ export class ConnectionManager {
     return ws;
   }
 
+  private buildShardWebSocketUrl(shardId: string): string {
+    // Default production endpoint pattern; override via endpointResolver if needed
+    // Example: wss://shard-<id>.workersql.dev
+    return `wss://shard-${shardId}.workersql.dev`;
+  }
+
   private isConnectionValid(connection: WebSocket): boolean {
     return connection.readyState === WebSocket.OPEN;
   }
 
   private handleConnectionClose(shardId: string, connection: WebSocket): void {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     // Remove from idle connections if present
     const idleIndex = pool.idleConnections.indexOf(connection);
@@ -235,7 +275,7 @@ export class ConnectionManager {
 
   // Enhanced cleanup with connection pool management
   cleanup(): void {
-    const cutoff = Date.now() - this.ttlMs;
+    const cutoff = Date.now() - this._ttlMs;
 
     // Clean up stale sessions
     for (const [id, info] of this.sessions.entries()) {
@@ -260,7 +300,7 @@ export class ConnectionManager {
       for (const conn of staleConnections) {
         try {
           conn.close();
-        } catch (e) {
+        } catch (_e) {
           // Ignore close errors
         }
       }
@@ -287,7 +327,9 @@ export class ConnectionManager {
     max: number;
   } | null {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return null;
+    if (!pool) {
+      return null;
+    }
 
     return {
       active: pool.activeConnections,
@@ -300,13 +342,15 @@ export class ConnectionManager {
   // Force close all connections for a shard
   async closeShardConnections(shardId: string): Promise<void> {
     const pool = this.connectionPools.get(shardId);
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     // Close all idle connections
     for (const conn of pool.idleConnections) {
       try {
         conn.close();
-      } catch (e) {
+      } catch (_e) {
         // Ignore close errors
       }
     }
@@ -337,7 +381,7 @@ export class ConnectionManager {
       for (const conn of pool.idleConnections) {
         try {
           conn.close();
-        } catch (e) {
+        } catch (_e) {
           // Ignore close errors
         }
       }

@@ -1,4 +1,5 @@
 import { TablePolicy, RoutingPolicy, EdgeSQLError } from '../types';
+import { parse as parseYaml } from 'yaml';
 
 /**
  * TablePolicyParser - Parses YAML configuration files for table policies
@@ -82,8 +83,8 @@ export class TablePolicyParser implements ITablePolicyParser {
   private yamlParser: any = null;
 
   constructor() {
-    // Lazy load yaml parser to avoid import issues
-    this.initializeYamlParser();
+    // Initialize YAML parser synchronously for immediate availability
+    this.initializeYamlParserSync();
   }
 
   /**
@@ -256,26 +257,38 @@ export class TablePolicyParser implements ITablePolicyParser {
   }
 
   /**
-   * Initialize YAML parser
+   * Initialize YAML parser synchronously
    */
-  private async initializeYamlParser(): Promise<void> {
+  private initializeYamlParserSync(): void {
     try {
       // Test seam: allow forcing fallback in tests without affecting production
       if ((globalThis as any).__FORCE_YAML_IMPORT_FAIL) {
         throw new Error('Forced yaml import failure');
       }
-      // Dynamic import to avoid bundling issues
-      const yaml = await import('yaml');
-      this.yamlParser = yaml;
-    } catch (error) {
-      console.warn('YAML parser not available, using fallback parsing');
-      // Fallback to basic JSON parsing for simple cases
+
+      // Use the actual yaml package for parsing
+      this.yamlParser = {
+        parse: (content: string) => {
+          try {
+            return parseYaml(content);
+          } catch (yamlError) {
+            // If YAML parsing fails, try JSON as fallback
+            try {
+              return JSON.parse(content);
+            } catch {
+              throw new Error('YAML parsing requires valid YAML or JSON content');
+            }
+          }
+        },
+      };
+    } catch (_error) {
+      console.warn('YAML parser initialization failed, using basic fallback');
       this.yamlParser = {
         parse: (content: string) => {
           try {
             return JSON.parse(content);
           } catch {
-            throw new Error('YAML parsing requires yaml package');
+            throw new Error('YAML parsing requires yaml package or valid JSON');
           }
         },
       };

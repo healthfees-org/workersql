@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import { SQLCompatibilityService } from '../../src/services/SQLCompatibilityService';
 import type { CloudflareEnvironment, QueryHints } from '../../src/types';
 

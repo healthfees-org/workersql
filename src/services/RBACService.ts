@@ -157,7 +157,9 @@ export class RBACService extends BaseService {
     const visited = new Set<string>();
 
     const resolveRole = (roleId: string): void => {
-      if (visited.has(roleId)) return;
+      if (visited.has(roleId)) {
+        return;
+      }
       visited.add(roleId);
 
       const role = schema.roles[roleId];
@@ -299,11 +301,15 @@ export class RBACService extends BaseService {
       return authContext.permissions.includes(subject) || authContext.userId === subject;
     });
 
-    if (!subjectMatch) return false;
+    if (!subjectMatch) {
+      return false;
+    }
 
     // Check action match
     const actionMatch = policy.actions.includes(request.action) || policy.actions.includes('*');
-    if (!actionMatch) return false;
+    if (!actionMatch) {
+      return false;
+    }
 
     // Check resource match
     const resourceMatch = policy.resources.some((resource) =>
@@ -317,8 +323,12 @@ export class RBACService extends BaseService {
    * Match resource patterns
    */
   private matchResource(pattern: string, resource: string): boolean {
-    if (pattern === '*') return true;
-    if (pattern === resource) return true;
+    if (pattern === '*') {
+      return true;
+    }
+    if (pattern === resource) {
+      return true;
+    }
 
     // Support wildcard patterns
     if (pattern.includes('*')) {

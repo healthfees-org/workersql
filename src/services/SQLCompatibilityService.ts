@@ -239,7 +239,7 @@ export class SQLCompatibilityService extends BaseService {
 
     for (const [mysqlType, sqliteType] of Object.entries(this.dataTypeMappings)) {
       const regex = new RegExp(`\\b${mysqlType}(\\([^)]*\\))?\\b`, 'gi');
-      transpiled = transpiled.replace(regex, (_match, _params) => sqliteType);
+      transpiled = transpiled.replace(regex, () => sqliteType);
     }
 
     // Clean any lingering TEXT(length) artifacts just in case
@@ -255,7 +255,7 @@ export class SQLCompatibilityService extends BaseService {
     transpiled = transpiled.replace(/\s+DEFAULT\s+CHARSET\s*=\s*\w+/gi, '');
 
     // Handle COLLATE
-    transpiled = transpiled.replace(/\s+COLLATE\s+\w+/gi, '');
+    transpiled = transpiled.replace(/\s+COLLATE\s*=\s*[\w_]+/gi, '');
 
     // Handle MySQL-specific constraints
     transpiled = transpiled.replace(/\s+UNSIGNED\s+/gi, ' ');
@@ -279,7 +279,7 @@ export class SQLCompatibilityService extends BaseService {
       // Convert MySQL data types to SQLite in ALTER TABLE (drop any length specifiers)
       for (const [mysqlType, sqliteType] of Object.entries(this.dataTypeMappings)) {
         const regex = new RegExp(`\\b${mysqlType}(\\([^)]*\\))?\\b`, 'gi');
-        result = result.replace(regex, (_match, _params) => {
+        result = result.replace(regex, () => {
           return sqliteType;
         });
       }
@@ -350,9 +350,6 @@ export class SQLCompatibilityService extends BaseService {
    */
   private convertSpecificFunctions(sql: string): string {
     let converted = sql;
-    // Handle YEAR(expr) -> STRFTIME('%Y', expr)
-    converted = converted.replace(/\bYEAR\s*\(/gi, "STRFTIME('%Y', ");
-    // Ensure STRFTIME used with explicit format retains closing parenthesis later
 
     // Handle GROUP_CONCAT
     converted = converted.replace(/GROUP_CONCAT\s*\(/gi, (match) => {
@@ -373,15 +370,34 @@ export class SQLCompatibilityService extends BaseService {
     // Handle CURTIME() -> time('now')
     converted = converted.replace(/\bCURTIME\s*\(\s*\)/gi, "TIME('now')");
 
-    // Handle YEAR(), MONTH(), DAY() functions with proper STRFTIME format
-    converted = converted.replace(/\bYEAR\s*\(/gi, "STRFTIME('%Y', ");
-    converted = converted.replace(/\bMONTH\s*\(/gi, "STRFTIME('%m', ");
-    converted = converted.replace(/\bDAY\s*\(/gi, "STRFTIME('%d', ");
+    // Handle YEAR() function specifically
+    converted = converted.replace(/\bYEAR\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%Y', $1)");
 
-    // Handle HOUR(), MINUTE(), SECOND() functions
-    converted = converted.replace(/\bHOUR\s*\(/gi, "STRFTIME('%H', ");
-    converted = converted.replace(/\bMINUTE\s*\(/gi, "STRFTIME('%M', ");
-    converted = converted.replace(/\bSECOND\s*\(/gi, "STRFTIME('%S', ");
+    // Handle MONTH() function specifically
+    converted = converted.replace(/\bMONTH\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%m', $1)");
+
+    // Handle DAY() function specifically
+    converted = converted.replace(/\bDAY\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%d', $1)");
+
+    // Handle HOUR() function specifically
+    converted = converted.replace(/\bHOUR\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%H', $1)");
+
+    // Handle MINUTE() function specifically
+    converted = converted.replace(/\bMINUTE\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%M', $1)");
+
+    // Handle SECOND() function specifically
+    converted = converted.replace(/\bSECOND\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%S', $1)");
+
+    // Handle STRFTIME functions that need format specifiers
+    // These handle cases where MONTH/DATE/etc. have already been replaced with STRFTIME
+    converted = converted.replace(/STRFTIME\s*\(\s*DATE\s*\)/gi, "STRFTIME('%m', DATE)");
+    converted = converted.replace(/STRFTIME\s*\(\s*TIME\s*\)/gi, "STRFTIME('%H:%M:%S', TIME)");
+    converted = converted.replace(/STRFTIME\s*\(\s*YEAR\s*\)/gi, "STRFTIME('%Y', YEAR)");
+    converted = converted.replace(/STRFTIME\s*\(\s*MONTH\s*\)/gi, "STRFTIME('%m', MONTH)");
+    converted = converted.replace(/STRFTIME\s*\(\s*DAY\s*\)/gi, "STRFTIME('%d', DAY)");
+    converted = converted.replace(/STRFTIME\s*\(\s*HOUR\s*\)/gi, "STRFTIME('%H', HOUR)");
+    converted = converted.replace(/STRFTIME\s*\(\s*MINUTE\s*\)/gi, "STRFTIME('%M', MINUTE)");
+    converted = converted.replace(/STRFTIME\s*\(\s*SECOND\s*\)/gi, "STRFTIME('%S', SECOND)");
 
     // Handle UNIX_TIMESTAMP()
     converted = converted.replace(/\bUNIX_TIMESTAMP\s*\(\s*\)/gi, "STRFTIME('%s', 'now')");
@@ -412,11 +428,16 @@ export class SQLCompatibilityService extends BaseService {
       while (j < s.length && depth > 0) {
         const ch = s[j];
         const prev = j > 0 ? s[j - 1] : '';
-        if (!inDouble && ch === "'" && prev !== '\\') inSingle = !inSingle;
-        else if (!inSingle && ch === '"' && prev !== '\\') inDouble = !inDouble;
-        else if (!inSingle && !inDouble) {
-          if (ch === '(') depth++;
-          else if (ch === ')') depth--;
+        if (!inDouble && ch === "'" && prev !== '\\') {
+          inSingle = !inSingle;
+        } else if (!inSingle && ch === '"' && prev !== '\\') {
+          inDouble = !inDouble;
+        } else if (!inSingle && !inDouble) {
+          if (ch === '(') {
+            depth++;
+          } else if (ch === ')') {
+            depth--;
+          }
         }
         j++;
       }
@@ -430,12 +451,16 @@ export class SQLCompatibilityService extends BaseService {
       for (let k = 0; k < inner.length; k++) {
         const ch = inner[k];
         const prev = k > 0 ? inner[k - 1] : '';
-        if (!inDouble && ch === "'" && prev !== '\\') inSingle = !inSingle;
-        else if (!inSingle && ch === '"' && prev !== '\\') inDouble = !inDouble;
-        else if (!inSingle && !inDouble) {
-          if (ch === '(') depth2++;
-          else if (ch === ')') depth2--;
-          else if (ch === ',' && depth2 === 0) {
+        if (!inDouble && ch === "'" && prev !== '\\') {
+          inSingle = !inSingle;
+        } else if (!inSingle && ch === '"' && prev !== '\\') {
+          inDouble = !inDouble;
+        } else if (!inSingle && !inDouble) {
+          if (ch === '(') {
+            depth2++;
+          } else if (ch === ')') {
+            depth2--;
+          } else if (ch === ',' && depth2 === 0) {
             parts.push(buf.trim());
             buf = '';
             continue;
@@ -443,7 +468,9 @@ export class SQLCompatibilityService extends BaseService {
         }
         buf += ch;
       }
-      if (buf.trim()) parts.push(buf.trim());
+      if (buf.trim()) {
+        parts.push(buf.trim());
+      }
       out += parts.join(' || ');
       i = j;
     }

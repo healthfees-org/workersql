@@ -42,5 +42,5 @@ export declare class PerformanceTestUtils {
     }>;
     static assertPerformance(executionTime: number, maxMs: number, operationName: string): void;
 }
-export * from '@jest/globals';
+export * from 'vitest';
 //# sourceMappingURL=setup.d.ts.map

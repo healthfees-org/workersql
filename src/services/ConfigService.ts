@@ -92,7 +92,7 @@ export class ConfigService extends BaseService {
     // Attempt to load table policy; if missing, continue with routing defaults
     try {
       await this.getTablePolicy(tableName);
-    } catch (e) {
+    } catch (_e) {
       this.log('warn', 'No table policy found; falling back to routing defaults', { tableName });
     }
     const routingPolicy = await this.getRoutingPolicy();

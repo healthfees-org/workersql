@@ -1,13 +1,4 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-  jest,
-} from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { ConnectionManager } from '../../src/services/ConnectionManager';
 
 describe('ConnectionManager - Connection Pooling', () => {
@@ -84,22 +75,22 @@ describe('ConnectionManager - Connection Pooling', () => {
   });
 
   describe('Connection Acquisition', () => {
-    let mockWebSocket: jest.Mocked<WebSocket>;
+    let mockWebSocket: any;
 
     beforeEach(() => {
       // Mock WebSocket
       mockWebSocket = {
         readyState: WebSocket.OPEN,
-        close: jest.fn(),
-        addEventListener: jest.fn(),
+        close: vi.fn(),
+        addEventListener: vi.fn(),
       } as any;
 
       // Mock the createNewConnection method
-      jest.spyOn(cm as any, 'createNewConnection').mockReturnValue(mockWebSocket);
+      vi.spyOn(cm as any, 'createNewConnection').mockReturnValue(mockWebSocket);
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it('acquires connection from pool when available', async () => {
@@ -130,13 +121,13 @@ describe('ConnectionManager - Connection Pooling', () => {
   });
 
   describe('Connection Release', () => {
-    let mockWebSocket: jest.Mocked<WebSocket>;
+    let mockWebSocket: any;
 
     beforeEach(() => {
       mockWebSocket = {
         readyState: WebSocket.OPEN,
-        close: jest.fn(),
-        addEventListener: jest.fn(),
+        close: vi.fn(),
+        addEventListener: vi.fn(),
       } as any;
     });
 
@@ -155,8 +146,8 @@ describe('ConnectionManager - Connection Pooling', () => {
 
       const invalidWebSocket = {
         readyState: WebSocket.CLOSED,
-        close: jest.fn(),
-        addEventListener: jest.fn(),
+        close: vi.fn(),
+        addEventListener: vi.fn(),
       } as any;
 
       cm.releaseConnection('shard_1', invalidWebSocket);
@@ -176,7 +167,7 @@ describe('ConnectionManager - Connection Pooling', () => {
       // Simulate some connections
       pool.activeConnections = 2;
       pool.idleConnections = [{ readyState: WebSocket.OPEN } as WebSocket];
-      pool.waitingQueue = [jest.fn(), jest.fn()];
+      pool.waitingQueue = [vi.fn(), vi.fn()];
 
       const stats = cm.getPoolStats('shard_1');
       expect(stats).toEqual({
@@ -193,7 +184,7 @@ describe('ConnectionManager - Connection Pooling', () => {
       cm.bindSession('sess1', 'tenantA', 'shard_1');
       const pool = (cm as any).connectionPools.get('shard_1');
 
-      const mockConn = { readyState: WebSocket.OPEN, close: jest.fn() } as any;
+      const mockConn = { readyState: WebSocket.OPEN, close: vi.fn() } as any;
       pool.idleConnections.push(mockConn);
 
       cm.cleanup();

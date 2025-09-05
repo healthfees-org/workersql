@@ -38,13 +38,13 @@ export class SQLSecurityService extends BaseService {
   // Suspicious SQL patterns that might indicate injection attempts
   private readonly suspiciousPatterns = [
     /(\bUNION\b.*\bSELECT\b)/i, // Union-based injection
-    /(\'\s*OR\s*\'\s*=\s*\')/i, // Boolean-based injection
-    /(\'\s*OR\s+1\s*=\s*1)/i, // Classic OR 1=1
-    /(\;\s*DROP\s+TABLE)/i, // Table dropping
-    /(\;\s*DELETE\s+FROM)/i, // Delete statements
+    /('\s*OR\s*'\s*=\s*')/i, // Boolean-based injection
+    /('\s*OR\s+1\s*=\s*1)/i, // Classic OR 1=1
+    /(;\s*DROP\s+TABLE)/i, // Table dropping
+    /(;\s*DELETE\s+FROM)/i, // Delete statements
     /(EXEC\s*\()/i, // Dynamic execution
     /(SCRIPT\s*<)/i, // Script injection
-    /(\'\s*\+\s*\')/, // String concatenation
+    /('\s*\+\s*')/, // String concatenation
     /(0x[0-9a-f]+)/i, // Hex encoding
     /(CHAR\s*\(\s*\d+\s*\))/i, // Character function abuse
     /(CONVERT\s*\(\s*.*\s*,\s*.*\s*\))/i, // Convert function abuse
@@ -53,8 +53,8 @@ export class SQLSecurityService extends BaseService {
     /(SLEEP\s*\()/i, // Sleep function attacks
     /(LOAD_FILE\s*\()/i, // File reading attempts
     /(INTO\s+OUTFILE)/i, // File writing attempts
-    /(\@\@version)/i, // Version detection
-    /(\@\@servername)/i, // Server name detection
+    /(@@version)/i, // Version detection
+    /(@@servername)/i, // Server name detection
     /(information_schema)/i, // Schema enumeration
     /(pg_sleep)/i, // PostgreSQL sleep
     /(dbms_pipe\.receive_message)/i, // Oracle delay
@@ -297,7 +297,7 @@ export class SQLSecurityService extends BaseService {
     this.dangerousKeywords.forEach((keyword) => {
       if (upperSQL.includes(keyword)) {
         // Allow certain keywords in specific contexts
-        if (!this.isKeywordAllowedInContext(keyword, upperSQL)) {
+        if (!this.isKeywordAllowedInContext(keyword)) {
           throw new EdgeSQLError(
             `Dangerous keyword '${keyword}' detected`,
             'SQL_DANGEROUS_KEYWORD'
@@ -408,15 +408,16 @@ export class SQLSecurityService extends BaseService {
    */
   private removeDangerousCharacters(sql: string): string {
     // Remove null bytes and other control characters
-    return sql.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    return sql.replace(
+      /[\0\x01\x02\x03\x04\x05\x06\x07\x08\x0B\x0C\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x7F]/g,
+      ''
+    );
   }
 
   /**
    * Validate balanced quotes in SQL
    */
   private validateBalancedQuotes(sql: string): void {
-    let singleQuoteCount = 0;
-    let doubleQuoteCount = 0;
     let inString = false;
     let stringChar = '';
 
@@ -427,11 +428,9 @@ export class SQLSecurityService extends BaseService {
         if (char === "'") {
           inString = true;
           stringChar = "'";
-          singleQuoteCount++;
         } else if (char === '"') {
           inString = true;
           stringChar = '"';
-          doubleQuoteCount++;
         }
       } else {
         if (char === stringChar) {
@@ -522,7 +521,7 @@ export class SQLSecurityService extends BaseService {
   /**
    * Check if keyword is allowed in context
    */
-  private isKeywordAllowedInContext(keyword: string, _sql: string): boolean {
+  private isKeywordAllowedInContext(keyword: string): boolean {
     switch (keyword.toUpperCase()) {
       case 'UPDATE':
       case 'DELETE':

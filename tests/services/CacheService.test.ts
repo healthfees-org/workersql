@@ -1,28 +1,23 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CacheService } from '../../src/services/CacheService';
 import type { Env, CacheEntry } from '../../src/types';
 
 describe('CacheService', () => {
   let cacheService: CacheService;
   let mockEnv: Env;
-  let mockKVNamespace: jest.Mocked<KVNamespace>;
-  let getMock: jest.Mock<
-    Promise<any>,
-    [key: string, type?: 'text' | 'json' | 'arrayBuffer' | 'stream']
-  >;
+  let mockKVNamespace: any;
+  let getMock: any;
 
   beforeEach(() => {
-    getMock = jest.fn<
-      Promise<any>,
-      [key: string, type?: 'text' | 'json' | 'arrayBuffer' | 'stream']
-    >();
+    getMock = vi.fn();
 
     mockKVNamespace = {
       get: getMock as any,
-      put: jest.fn(),
-      delete: jest.fn(),
-      list: jest.fn(),
-      getWithMetadata: jest.fn(),
-    } as unknown as jest.Mocked<KVNamespace>;
+      put: vi.fn(),
+      delete: vi.fn(),
+      list: vi.fn(),
+      getWithMetadata: vi.fn(),
+    };
 
     mockEnv = {
       APP_CACHE: mockKVNamespace,

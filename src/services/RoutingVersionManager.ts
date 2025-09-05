@@ -94,8 +94,11 @@ export class RoutingVersionManager implements IRoutingVersionManager {
   private readonly POLICY_KEY_PREFIX = 'routing:policy:v';
   private readonly VERSION_KEY = 'routing:current_version';
   private readonly HISTORY_KEY_PREFIX = 'routing:history:v';
+  private env: CloudflareEnvironment;
 
-  constructor(private env: CloudflareEnvironment) {}
+  constructor(env: CloudflareEnvironment) {
+    this.env = env;
+  }
 
   /**
    * Get current routing policy version

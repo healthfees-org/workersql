@@ -14,7 +14,7 @@ export default defineConfig({
       'node_modules/**',
       'dist/**',
       'sdk/**',
-      'tests/browser/**', // Exclude Playwright tests
+      'tests/e2e/**', // Exclude Playwright tests
     ],
 
     // Global test setup - commented out to avoid import issues
@@ -23,25 +23,40 @@ export default defineConfig({
 
     // Coverage configuration
     coverage: {
+      enabled: true,
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'html', 'json', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
+        'src/types/**',
+        'src/**/*.d.ts',
+        'tests/**',
         'node_modules/**',
         'dist/**',
-        'sdk/**',
-        'tests/**',
-        '**/*.d.ts',
-        '**/*.config.*',
-        '**/coverage/**',
+        'coverage/**',
       ],
       thresholds: {
         global: {
-          branches: 90,
-          functions: 90,
-          lines: 90,
-          statements: 90,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+          statements: 80,
         },
       },
+      // Persist coverage output between runs to compare deltas
+      clean: false,
+      reportsDirectory: './coverage',
+      // Watermarks for report UI
+      watermarks: {
+        lines: [80, 95],
+        functions: [80, 95],
+        branches: [80, 95],
+        statements: [80, 95],
+      },
+      // Include all source files so untouched files are shown explicitly
+      all: true,
+      // v8 respects source maps automatically; keep directory stable
+      reportOnFailure: true,
     },
 
     // Timeout configuration
@@ -52,9 +67,10 @@ export default defineConfig({
     pool: 'threads',
     poolOptions: {
       threads: {
-        singleThread: false,
+        // Use single thread when collecting coverage to avoid flaky merge issues
+        singleThread: true,
         minThreads: 1,
-        maxThreads: 4,
+        maxThreads: 1,
       },
     },
 

@@ -24,13 +24,14 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedIndexedAccess": true,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
+    "declarationMap": false,
     "sourceMap": true,
+    "inlineSources": true,
     "outDir": "./dist",
     "rootDir": "src",
     "baseUrl": ".",
-    "types": ["@cloudflare/workers-types", "jest"],
+    "types": ["@cloudflare/workers-types", "jest", "vitest/globals"],
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
@@ -42,7 +43,7 @@
       "@/utils/*": ["./src/utils/*"]
     }
   },
-  "include": ["src/**/*", "*.d.ts"],
+  "include": ["src/**/*", "tests/**/*.ts", "*.d.ts"],
   "exclude": [
     "node_modules",
     "**/node_modules/**",

@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RoutingVersionManager } from '../../src/services/RoutingVersionManager';
 
 // Mock Cloudflare environment
 const mockEnv = {
   APP_CACHE: {
-    get: jest.fn(),
-    put: jest.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
   },
 } as any;
 
@@ -13,7 +13,7 @@ describe('RoutingVersionManager', () => {
   let versionManager: RoutingVersionManager;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     versionManager = new RoutingVersionManager(mockEnv);
   });
 
@@ -345,7 +345,7 @@ describe('RoutingVersionManager', () => {
 
       const incompatible = { version: 2, tenants: { t2: 'unknown_shard' }, ranges: [] } as any;
 
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       await expect(versionManager.updateCurrentPolicy(incompatible, 'desc')).rejects.toThrow(
         'Policy update is not compatible with current policy'
       );
@@ -390,7 +390,7 @@ describe('RoutingVersionManager', () => {
         ranges: [{ prefix: 'p', shard: 'shard_1' }],
       };
 
-      const warn = jest.spyOn(console, 'warn').mockImplementation();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const ok = await versionManager.validatePolicyCompatibility(
         newPolicy as any,
         { version: 1, tenants: {}, ranges: [] } as any
@@ -435,7 +435,7 @@ describe('RoutingVersionManager', () => {
   });
   describe('validatePolicyCompatibility warnings', () => {
     it('should warn about unknown shards for tenants', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const newPolicy = {
         version: 2,
@@ -463,7 +463,7 @@ describe('RoutingVersionManager', () => {
     });
 
     it('should warn about unknown shards for ranges', async () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const newPolicy = {
         version: 2,

@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
+import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { Miniflare } from 'miniflare';
 import type { CloudflareEnvironment } from '../src/types';
 import { readFileSync } from 'fs';
@@ -15,7 +15,7 @@ declare global {
 }
 
 // Test timeout configuration
-jest.setTimeout(30000);
+vi.setConfig({ testTimeout: 30000 });
 
 // Miniflare instance for isolated testing
 let miniflare: Miniflare;
@@ -146,26 +146,26 @@ export function assertValidResponse(response: Response): void {
  */
 export function createMockEnvironment(): CloudflareEnvironment {
   const mockKV = {
-    get: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
-    list: jest.fn().mockResolvedValue({ keys: [] }),
+    get: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    list: vi.fn().mockResolvedValue({ keys: [] }),
   } as any;
 
   const mockQueue = {
-    send: jest.fn(),
-    sendBatch: jest.fn(),
+    send: vi.fn(),
+    sendBatch: vi.fn(),
   } as any;
 
   const mockDO = {
-    get: jest.fn(),
-    idFromName: jest.fn(),
+    get: vi.fn(),
+    idFromName: vi.fn(),
   } as any;
 
   const mockD1 = {
-    prepare: jest.fn(),
-    exec: jest.fn(),
-    batch: jest.fn(),
+    prepare: vi.fn(),
+    exec: vi.fn(),
+    batch: vi.fn(),
   } as any;
 
   return {
@@ -238,4 +238,4 @@ export class PerformanceTestUtils {
 }
 
 // Export test utilities for use in test files
-export * from '@jest/globals';
+export * from 'vitest';

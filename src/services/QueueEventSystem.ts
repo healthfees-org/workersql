@@ -1,3 +1,5 @@
+/* eslint-disable no-console, @typescript-eslint/no-unused-vars */
+
 import { DatabaseEvent, CloudflareEnvironment, EdgeSQLError } from '../types';
 
 /**
@@ -200,7 +202,7 @@ export class QueueEventSystem implements IQueueEventSystem {
       console.error(`Event processing failed: ${message.body.type}`, error);
 
       // Handle retry logic
-      await this.handleFailedMessage(message, error);
+      await this.handleFailedMessage(message);
 
       // Update failure metrics
       this.updateFailureMetrics(message.body.type);
@@ -289,7 +291,7 @@ export class QueueEventSystem implements IQueueEventSystem {
   /**
    * Handle failed message with retry logic
    */
-  private async handleFailedMessage(message: QueueMessage, _error: unknown): Promise<void> {
+  private async handleFailedMessage(message: QueueMessage): Promise<void> {
     if (message.attempts >= this.maxRetries) {
       console.error(`Message ${message.id} exceeded max retries, moving to dead letter queue`);
 

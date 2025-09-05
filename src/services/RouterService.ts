@@ -116,7 +116,6 @@ export enum RoutingStrategy {
   TENANT_HASH = 'tenant_hash',
   TABLE_HASH = 'table_hash',
   ROUND_ROBIN = 'round_robin',
-  LEAST_CONNECTIONS = 'least_connections',
   CAPACITY_AWARE = 'capacity_aware',
   CUSTOM = 'custom',
 }

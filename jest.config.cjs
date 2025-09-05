@@ -15,6 +15,8 @@ module.exports = {
     'src/**/*.{ts,js}',
     '!src/types/**',
   ],
+  coverageProvider: 'v8', // Using V8 for Jest, Istanbul for Vitest
+  coverageReporters: ['text', 'json', 'html', 'lcov'],
   // Temporarily disable setup to avoid Miniflare issues
   // setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   // Ignore Vitest-only suites when running Jest
@@ -31,7 +33,6 @@ module.exports = {
     '<rootDir>/src/services/BaseService.ts',
     '<rootDir>/src/services/CacheService.ts',
     '<rootDir>/src/services/ConfigService.ts',
-    '<rootDir>/src/gateway.ts',
   ],
   // Add reporters for detailed logging
   reporters: [
