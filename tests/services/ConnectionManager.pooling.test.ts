@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
-import { ConnectionManager } from '../../src/services/ConnectionManager';
+import { ConnectionManager } from '@/services/ConnectionManager';
 
 describe('ConnectionManager - Connection Pooling', () => {
   let cm: ConnectionManager;
@@ -11,11 +11,11 @@ describe('ConnectionManager - Connection Pooling', () => {
     static CLOSED = 3;
     readyState = FakeWebSocket.OPEN;
     url: string;
-    private listeners: Record<string, Function[]> = {};
+    private listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
     constructor(url: string) {
       this.url = url;
     }
-    addEventListener(event: string, handler: Function) {
+    addEventListener(event: string, handler: (...args: unknown[]) => void) {
       (this.listeners[event] ||= []).push(handler);
     }
     close() {

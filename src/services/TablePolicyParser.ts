@@ -80,7 +80,7 @@ export interface YamlRoutingPolicy {
  * TablePolicyParser implementation
  */
 export class TablePolicyParser implements ITablePolicyParser {
-  private yamlParser: any = null;
+  private yamlParser: { parse: (content: string) => unknown } | null = null;
 
   constructor() {
     // Initialize YAML parser synchronously for immediate availability
@@ -262,7 +262,7 @@ export class TablePolicyParser implements ITablePolicyParser {
   private initializeYamlParserSync(): void {
     try {
       // Test seam: allow forcing fallback in tests without affecting production
-      if ((globalThis as any).__FORCE_YAML_IMPORT_FAIL) {
+      if ((globalThis as Record<string, unknown>)['__FORCE_YAML_IMPORT_FAIL']) {
         throw new Error('Forced yaml import failure');
       }
 
@@ -271,7 +271,7 @@ export class TablePolicyParser implements ITablePolicyParser {
         parse: (content: string) => {
           try {
             return parseYaml(content);
-          } catch (yamlError) {
+          } catch {
             // If YAML parsing fails, try JSON as fallback
             try {
               return JSON.parse(content);
@@ -281,7 +281,7 @@ export class TablePolicyParser implements ITablePolicyParser {
           }
         },
       };
-    } catch (_error) {
+    } catch {
       console.warn('YAML parser initialization failed, using basic fallback');
       this.yamlParser = {
         parse: (content: string) => {
@@ -305,7 +305,7 @@ export class TablePolicyParser implements ITablePolicyParser {
         // In Cloudflare Workers, environment variables are not available via process.env
         // We'll return the original match since env vars should be handled at the Worker level
         return match;
-      }) as T;
+      }) as unknown as T;
     }
 
     if (Array.isArray(data)) {
@@ -313,11 +313,11 @@ export class TablePolicyParser implements ITablePolicyParser {
     }
 
     if (data && typeof data === 'object') {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(data)) {
         result[key] = this.substituteEnvironmentVariables(value);
       }
-      return result;
+      return result as T;
     }
 
     return data;

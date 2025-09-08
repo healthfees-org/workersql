@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CircuitBreakerService } from '../../src/services/CircuitBreakerService';
+import { CircuitBreakerService } from '@/services/CircuitBreakerService';
 
 describe('CircuitBreakerService (extras)', () => {
   it('isOpen returns false when closed and toggles true when open', async () => {

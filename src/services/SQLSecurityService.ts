@@ -43,11 +43,11 @@ export class SQLSecurityService extends BaseService {
     /(;\s*DROP\s+TABLE)/i, // Table dropping
     /(;\s*DELETE\s+FROM)/i, // Delete statements
     /(EXEC\s*\()/i, // Dynamic execution
-    /(SCRIPT\s*<)/i, // Script injection
+    /(<script>)/i, // Script injection
     /('\s*\+\s*')/, // String concatenation
     /(0x[0-9a-f]+)/i, // Hex encoding
     /(CHAR\s*\(\s*\d+\s*\))/i, // Character function abuse
-    /(CONVERT\s*\(\s*.*\s*,\s*.*\s*\))/i, // Convert function abuse
+    /(CONVERT\s*\([^)]*,\s*[^)]*\))/i, // Convert function abuse
     /(WAITFOR\s+DELAY)/i, // Time delay attacks
     /(BENCHMARK\s*\()/i, // MySQL benchmark function
     /(SLEEP\s*\()/i, // Sleep function attacks
@@ -408,10 +408,13 @@ export class SQLSecurityService extends BaseService {
    */
   private removeDangerousCharacters(sql: string): string {
     // Remove null bytes and other control characters
-    return sql.replace(
-      /[\0\x01\x02\x03\x04\x05\x06\x07\x08\x0B\x0C\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x7F]/g,
-      ''
-    );
+    return sql
+      .split('')
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        return code >= 32 && code !== 127; // Keep printable characters only
+      })
+      .join('');
   }
 
   /**

@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BaseService } from '../../src/services/BaseService';
-import { EdgeSQLError } from '../../src/types';
+import { BaseService } from '@/services/BaseService';
+import { EdgeSQLError } from '@/types';
 
 // Mock crypto for generateId and hashString
+const mockRandomUUID = vi.fn(() => 'test-uuid-123');
+const mockDigest = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+
 Object.defineProperty(global, 'crypto', {
   value: {
-    randomUUID: vi.fn(() => 'test-uuid-123'),
+    randomUUID: mockRandomUUID,
     subtle: {
-      digest: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])),
+      digest: mockDigest,
     },
   },
+  writable: true,
 });
 
 // Concrete implementation for testing BaseService
@@ -131,7 +135,8 @@ describe('BaseService', () => {
       mockEnv.LOG_LEVEL = 'info';
       const testService = new TestService(mockEnv, mockAuthContext);
 
-      service.testLog('debug', 'Test debug message');
+      // Use the locally constructed instance so variable isn't unused and behavior is isolated
+      testService.testLog('debug', 'Test debug message');
 
       expect(consoleSpy).not.toHaveBeenCalled();
     });
@@ -170,14 +175,21 @@ describe('BaseService', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"tenantId":null'));
     });
+
+    it('should log with undefined meta', () => {
+      service.testLog('info', 'Test message', undefined);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"Test message"'));
+    });
   });
 
   describe('generateId', () => {
     it('should generate a unique ID', () => {
+      mockRandomUUID.mockClear();
       const id = service.testGenerateId();
 
+      expect(mockRandomUUID).toHaveBeenCalled();
       expect(id).toBe('test-uuid-123');
-      expect(crypto.randomUUID).toHaveBeenCalled();
     });
   });
 
@@ -232,6 +244,13 @@ describe('BaseService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should parse JSON with special characters', () => {
+      const jsonString = '{"key": "value with \\"quotes\\" and \\n newlines"}';
+      const result = service.testSafeJsonParse(jsonString, { default: true });
+
+      expect(result).toEqual({ key: 'value with "quotes" and \n newlines' });
+    });
   });
 
   describe('createCacheKey', () => {
@@ -256,23 +275,28 @@ describe('BaseService', () => {
 
   describe('hashString', () => {
     it('should hash string using SHA-256', async () => {
+      mockDigest.mockClear();
       const input = 'test string';
       const hash = await service.testHashString(input);
 
+      expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
       expect(hash).toBe('0102030405060708');
-      expect(crypto.subtle.digest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
     });
 
     it('should handle empty string', async () => {
+      mockDigest.mockClear();
       const hash = await service.testHashString('');
 
+      expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
       expect(hash).toBe('0102030405060708');
     });
 
     it('should handle special characters', async () => {
+      mockDigest.mockClear();
       const input = 'test@#$%^&*()';
       const hash = await service.testHashString(input);
 
+      expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
       expect(hash).toBe('0102030405060708');
     });
   });
@@ -344,6 +368,14 @@ describe('BaseService', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"level":"warn"'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Retry attempt 1'));
+    });
+
+    it('should handle maxRetries = 0', async () => {
+      const operation = vi.fn().mockRejectedValue(new Error('Failure'));
+
+      await expect(service.testRetryWithBackoff(operation, 0)).rejects.toThrow('Failure');
+
+      expect(operation).toHaveBeenCalledTimes(1);
     });
   });
 

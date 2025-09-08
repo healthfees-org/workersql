@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![WorkerSQL Logo](https://via.placeholder.com/300x100/1f2937/ffffff?text=WorkerSQL)
+![WorkerSQL Logo](https://github.com/healthfees-org/workersql/blob/main/docs/workersql.png?raw=true)
 
 **MySQL-compatible edge database platform built on Cloudflare Workers**
 
@@ -379,26 +379,25 @@ For enterprise support, SLA guarantees, and custom development:
 
 ## Roadmap
 
-### Current (Q4 2024)
+### Current (Q3 2025)
 
 - ✅ Core SQL compatibility
 - ✅ Authentication & authorization
 - ✅ Multi-tenant isolation
 - ✅ Real-time caching
 
-### Upcoming (Q1 2025)
+### Upcoming (Q4 2025)
 
 - 🔄 Advanced analytics queries
 - 🔄 Cross-region replication
 - 🔄 GraphQL API support
 - 🔄 Enhanced monitoring dashboard
 
-### Future (Q2+ 2025)
+### Future (Q1+ 2026)
 
 - 📋 Full-text search capabilities
 - 📋 Advanced encryption features
 - 📋 Machine learning integrations
-- 📋 Multi-cloud deployment options
 
 ## Acknowledgments
 
@@ -413,7 +412,7 @@ For enterprise support, SLA guarantees, and custom development:
 
 **Made with ❤️ by the HealthFees team**
 
-[Website](https://healthfees.org) • [Blog](https://blog.healthfees.org) •
-[Twitter](https://twitter.com/healthfees)
+[Website](https://healthfees.org) • [Blog](https://www.healthfees.org/insights)
+• [Twitter](https://twitter.com/healthfees)
 
 </div>

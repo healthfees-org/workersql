@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConfigService } from '../../src/services/ConfigService';
-import type { Env, AuthContext } from '../../src/types';
+import { ConfigService } from '@/services/ConfigService';
+import type { Env, AuthContext } from '@/types';
 
 describe('ConfigService', () => {
   let configService: ConfigService;

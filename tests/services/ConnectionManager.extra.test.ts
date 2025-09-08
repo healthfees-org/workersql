@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConnectionManager } from '../../src/services/ConnectionManager';
+import { ConnectionManager } from '@/services/ConnectionManager';
 
 describe('ConnectionManager (extras)', () => {
   it('getShardConnections returns 0 for unknown shard', () => {

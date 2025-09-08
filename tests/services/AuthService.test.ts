@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AuthService } from '../../../src/services/AuthService';
-import { EdgeSQLError } from '../../../src/types';
+import { AuthService } from '@/services/AuthService';
+import { EdgeSQLError } from '@/types';
 
 // Mock crypto.subtle for JWT signature verification
 Object.defineProperty(global, 'crypto', {

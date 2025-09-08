@@ -375,14 +375,18 @@ export class RBACService extends BaseService {
   ): unknown {
     // Support dot notation for nested fields
     const parts = field.split('.');
-    let value: any = {
+    let value: Record<string, unknown> | AuthContext | AccessRequest = {
       auth: authContext,
       request: request,
       context: request.context || {},
     };
 
     for (const part of parts) {
-      value = value?.[part];
+      if (typeof value === 'object' && value !== null && part in value) {
+        value = (value as Record<string, unknown>)[part] as Record<string, unknown>;
+      } else {
+        return undefined;
+      }
     }
 
     return value;

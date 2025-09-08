@@ -30,7 +30,7 @@ export class ConnectionManager {
   private connectionPools = new Map<string, ConnectionPool>();
   // In Node (Jest), setInterval returns a Timer object that can be unref()'d
   // to avoid keeping the event loop alive; in browsers it is a number.
-  private cleanupInterval?: any;
+  private cleanupInterval?: number | NodeJS.Timeout;
   private endpointResolver: (shardId: string) => string;
   private socketFactory: SocketFactory;
   private _ttlMs: number;
@@ -300,7 +300,7 @@ export class ConnectionManager {
       for (const conn of staleConnections) {
         try {
           conn.close();
-        } catch (_e) {
+        } catch {
           // Ignore close errors
         }
       }
@@ -309,7 +309,7 @@ export class ConnectionManager {
 
   private startCleanupInterval(): void {
     // Run cleanup every minute
-    const timer: any = setInterval(() => {
+    const timer = setInterval(() => {
       this.cleanup();
     }, 60 * 1000);
     // Prevent Jest/Node process from staying alive because of this interval
@@ -350,7 +350,7 @@ export class ConnectionManager {
     for (const conn of pool.idleConnections) {
       try {
         conn.close();
-      } catch (_e) {
+      } catch {
         // Ignore close errors
       }
     }
@@ -381,7 +381,7 @@ export class ConnectionManager {
       for (const conn of pool.idleConnections) {
         try {
           conn.close();
-        } catch (_e) {
+        } catch {
           // Ignore close errors
         }
       }

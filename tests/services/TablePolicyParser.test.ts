@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TablePolicyParser } from '../../src/services/TablePolicyParser';
+import { TablePolicyParser } from '@/services/TablePolicyParser';
 
 describe('TablePolicyParser', () => {
   let parser: TablePolicyParser;
@@ -493,7 +493,7 @@ cache:
     it('should handle YAML parser fallback with invalid content', async () => {
       const newParser = new TablePolicyParser();
       (newParser as any).yamlParser = {
-        parse: (content: string) => {
+        parse: (_content: string) => {
           throw new Error('YAML parsing requires yaml package');
         },
       };
@@ -510,7 +510,7 @@ cache:
 
       const newParser = new TablePolicyParser();
       (newParser as any).yamlParser = {
-        parse: (content: string) => {
+        parse: (_content: string) => {
           throw new Error('YAML parsing requires yaml package');
         },
       };

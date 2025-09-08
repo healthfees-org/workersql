@@ -1,8 +1,8 @@
 import { beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { Miniflare } from 'miniflare';
 import type { CloudflareEnvironment } from '../src/types';
-import { readFileSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 
 /**
  * Global test setup for Miniflare v4-based testing
@@ -10,7 +10,9 @@ import { join } from 'path';
  */
 
 declare global {
+  // eslint-disable-next-line no-var
   var mf: Miniflare;
+  // eslint-disable-next-line no-var
   var env: CloudflareEnvironment;
 }
 
@@ -22,7 +24,6 @@ let miniflare: Miniflare;
 
 beforeAll(async () => {
   // Build the worker first to ensure dist/gateway.js exists
-  const { execSync } = require('child_process');
   try {
     execSync('npm run build', { stdio: 'pipe' });
   } catch (error) {

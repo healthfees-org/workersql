@@ -223,7 +223,7 @@ export class SecretsService extends BaseService {
    */
   private getFromEnvironment(key: string): string | undefined {
     // Access environment variable through Cloudflare bindings
-    const value = (this.env as any)[key];
+    const value = (this.env as unknown as Record<string, unknown>)[key];
 
     if (value === undefined || value === null) {
       return undefined;

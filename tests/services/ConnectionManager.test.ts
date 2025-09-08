@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ConnectionManager } from '../../src/services/ConnectionManager';
+import { ConnectionManager } from '@/services/ConnectionManager';
 
 describe('ConnectionManager', () => {
   let cm: ConnectionManager;
@@ -122,7 +122,7 @@ describe('ConnectionManager', () => {
       cm.bindSession('sess2', 'tenantA', 'shard_1');
       const txSessions = cm.getTransactionSessions();
       expect(txSessions).toHaveLength(1);
-      expect(txSessions[0].transactionId).toBe('tx_123');
+      expect(txSessions[0]!.transactionId).toBe('tx_123');
     });
   });
 

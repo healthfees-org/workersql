@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CacheService } from '../../src/services/CacheService';
-import type { Env, CacheEntry } from '../../src/types';
+import { CacheService } from '@/services/CacheService';
+import type { Env, CacheEntry } from '@/types';
 
 describe('CacheService', () => {
   let cacheService: CacheService;

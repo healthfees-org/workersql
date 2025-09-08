@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
@@ -29,7 +29,7 @@
     "sourceMap": true,
     "inlineSources": true,
     "outDir": "./dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "baseUrl": ".",
     "types": ["@cloudflare/workers-types", "jest", "vitest/globals"],
     "skipLibCheck": true,
@@ -43,7 +43,7 @@
       "@/utils/*": ["./src/utils/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*.ts", "*.d.ts"],
+  "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.d.ts", "*.d.ts"],
   "exclude": [
     "node_modules",
     "**/node_modules/**",
@@ -51,7 +51,6 @@
     "build",
     "coverage",
     "sdk/**/*",
-    "tests/**/*",
-    "**/*.d.ts"
+    "**/*.js"
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { RoutingVersionManager } from '../../src/services/RoutingVersionManager';
+import { RoutingVersionManager } from '@/services/RoutingVersionManager';
 
 // Mock Cloudflare environment
 const mockEnv = {
@@ -132,8 +132,8 @@ describe('RoutingVersionManager', () => {
       const versions = await versionManager.listVersions();
 
       expect(versions).toHaveLength(2);
-      expect(versions[0].version).toBe(2);
-      expect(versions[1].version).toBe(1);
+      expect(versions[0]!.version).toBe(2);
+      expect(versions[1]!.version).toBe(1);
     });
 
     it('should handle missing version info gracefully', async () => {
@@ -146,7 +146,7 @@ describe('RoutingVersionManager', () => {
       const versions = await versionManager.listVersions();
 
       expect(versions).toHaveLength(1);
-      expect(versions[0].version).toBe(2);
+      expect(versions[0]!.version).toBe(2);
     });
 
     it('should handle when current version is 0 by returning empty list', async () => {

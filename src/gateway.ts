@@ -189,7 +189,7 @@ export class EdgeSQLGateway {
 
     const { 0: client, 1: server } = new WebSocketPair();
 
-    (server as any).accept();
+    (server as WebSocket & { accept(): void }).accept();
 
     // Derive or receive a session id from headers; fallback to random
     const sessionId = request.headers.get('x-session-id') || crypto.randomUUID();
@@ -205,7 +205,7 @@ export class EdgeSQLGateway {
     // Enhanced message protocol: { sql, params, type, action }
     server.addEventListener('message', async (evt: MessageEvent) => {
       try {
-        const payload = JSON.parse(String(evt.data)) as {
+        const payload = JSON.parse(evt.data) as {
           sql?: string;
           params?: unknown[];
           action?: 'begin' | 'commit' | 'rollback';
@@ -244,7 +244,7 @@ export class EdgeSQLGateway {
         const type: SQLQuery['type'] = sqlUpper.startsWith('SELECT')
           ? 'SELECT'
           : sqlUpper.match(/^(INSERT|UPDATE|DELETE)/)
-            ? (sqlUpper.split(' ')[0] as any)
+            ? (sqlUpper.split(' ')[0] as 'INSERT' | 'UPDATE' | 'DELETE')
             : 'DDL';
 
         const query: SQLQuery = {
@@ -302,7 +302,7 @@ export class EdgeSQLGateway {
       this.connections.releaseSession(sessionId);
     });
 
-    return new Response(null, { webSocket: client } as any);
+    return new Response(null, { webSocket: client as unknown as WebSocket });
   }
 
   /**
@@ -328,13 +328,13 @@ export class EdgeSQLGateway {
       }
 
       // Extract tenant information from JWT claims
-      const tenantId = payload.tenant_id || payload.sub || payload.tenantId;
+      const tenantId = payload['tenant_id'] || payload['sub'] || payload['tenantId'];
       if (!tenantId) {
         return { valid: false };
       }
 
       // Extract permissions from JWT claims
-      const permissions = payload.permissions || payload.roles || ['read'];
+      const permissions = payload['permissions'] || payload['roles'] || ['read'];
 
       return {
         valid: true,
@@ -342,7 +342,7 @@ export class EdgeSQLGateway {
         permissions: Array.isArray(permissions) ? permissions : [String(permissions)],
       };
     } catch (error) {
-      console.error('JWT validation failed:', error);
+      this.log('error', 'JWT validation failed', { error: (error as Error).message });
       return { valid: false };
     }
   }
@@ -350,7 +350,7 @@ export class EdgeSQLGateway {
   /**
    * Verify JWT token and extract payload
    */
-  private verifyJWT(token: string): any {
+  private verifyJWT(token: string): Record<string, unknown> | null {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {
@@ -364,21 +364,21 @@ export class EdgeSQLGateway {
 
       // Decode payload (no signature verification for now - in production use proper JWT library)
       const payloadJson = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
-      const payload = JSON.parse(payloadJson);
+      const payload = JSON.parse(payloadJson) as Record<string, unknown>;
 
       // Basic validation
       const now = Math.floor(Date.now() / 1000);
-      if (payload.exp && payload.exp < now) {
+      if (typeof payload['exp'] === 'number' && payload['exp'] < now) {
         throw new Error('Token expired');
       }
 
-      if (payload.nbf && payload.nbf > now) {
+      if (typeof payload['nbf'] === 'number' && payload['nbf'] > now) {
         throw new Error('Token not yet valid');
       }
 
       return payload;
     } catch (error) {
-      console.error('JWT verification failed:', error);
+      this.log('error', 'JWT verification failed', { error: (error as Error).message });
       return null;
     }
   }
@@ -463,7 +463,7 @@ export class EdgeSQLGateway {
     if (cached) {
       return {
         success: true,
-        data: cached,
+        data: cached.data,
         cached: true,
         executionTime: 0,
       };
@@ -495,7 +495,7 @@ export class EdgeSQLGateway {
 
     // Cache the result
     this._ctx.waitUntil(
-      this.cacheService.set(cacheKey, data, {
+      this.cacheService.set(cacheKey, data.data, {
         ttlMs: this.configService.getCacheTTL(),
         swrMs: this.configService.getCacheSWR(),
       })
@@ -503,7 +503,7 @@ export class EdgeSQLGateway {
 
     return {
       success: true,
-      data,
+      data: data.data,
       cached: false,
       executionTime,
     };
@@ -552,7 +552,7 @@ export class EdgeSQLGateway {
 
     return {
       success: true,
-      data,
+      data: data.data,
       cached: false,
       executionTime,
     };
@@ -592,7 +592,7 @@ export class EdgeSQLGateway {
 
     return {
       success: true,
-      data,
+      data: data.data,
       cached: false,
       executionTime,
     };
@@ -687,7 +687,10 @@ export class EdgeSQLGateway {
    * Log incoming request details
    */
   public logRequest(request: Request, requestId: string): void {
-    console.log(`[${requestId}] ${request.method} ${request.url} - ${new Date().toISOString()}`);
+    this.log(
+      'info',
+      `[${requestId}] ${request.method} ${request.url} - ${new Date().toISOString()}`
+    );
   }
 
   /**
@@ -750,7 +753,7 @@ export class EdgeSQLGateway {
       return { allowed: true };
     } catch (error) {
       // If rate limiting fails, allow the request
-      console.warn('Rate limiting check failed:', error);
+      this.log('warn', 'Rate limiting check failed', { error: (error as Error).message });
       return { allowed: true };
     }
   }
@@ -758,7 +761,11 @@ export class EdgeSQLGateway {
   /**
    * Log message with structured data
    */
-  public log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
+  public log(
+    level: 'info' | 'warn' | 'error',
+    message: string,
+    data?: Record<string, unknown>
+  ): void {
     const logEntry = {
       level,
       message,
@@ -766,7 +773,11 @@ export class EdgeSQLGateway {
       ...data,
     };
 
-    console.log(JSON.stringify(logEntry));
+    if (level === 'error') {
+      console.error(JSON.stringify(logEntry));
+    } else if (level === 'warn') {
+      console.warn(JSON.stringify(logEntry));
+    }
   }
 
   /**

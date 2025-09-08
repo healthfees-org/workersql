@@ -38,24 +38,24 @@ repos:
     hooks:
       - id: eslint
         name: ESLint
-        entry: bash -lc "npx eslint --fix --ignore-path .eslintignore src tests || true"
+        entry: npx eslint --fix --ignore-path .eslintignore --quiet
         language: node
         files: \.(ts|js)$
         exclude: (node_modules/|\.github/instructions/|sdk/)
-
       - id: prettier
         name: Prettier
-        entry: npx prettier --write --ignore-path .prettierignore --no-error-on-unmatched-pattern
+        entry: npx prettier --write --ignore-path .prettierignore --log-level warn
         language: node
         pass_filenames: true
         files: \.(ts|js|json|md|ya?ml)$
         exclude: (node_modules/|\.github/instructions/|sdk/|dist/|build/|coverage/|^\.pre-commit-config\.yaml$)
-
       - id: typescript-check
         name: TypeScript Check
-        entry: bash -lc "npx tsc --noEmit --skipLibCheck"
+        entry: npx tsc --noEmit --skipLibCheck
         language: node
-        files: \.(ts)$
+        pass_filenames: false
+        files: ''
+        always_run: true
         exclude: (node_modules/|\.github/instructions/|sdk/)
 
   - repo: https://github.com/adrienverge/yamllint

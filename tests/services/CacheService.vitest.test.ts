@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { CacheService } from '../../src/services/CacheService';
+import { CacheService } from '@/services/CacheService';
 import { createMockEnvironment } from '../vitest.setup';
 
 describe('CacheService (Vitest)', () => {

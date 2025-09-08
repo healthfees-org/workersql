@@ -76,7 +76,6 @@ export class TableShard implements DurableObject {
           return new Response('Not Found', { status: 404 });
       }
     } catch (error) {
-      console.error('Shard error:', error);
       return new Response(
         JSON.stringify({
           success: false,
@@ -464,7 +463,9 @@ export class TableShard implements DurableObject {
   private updateCapacity(): void {
     // Simple size calculation - TODO: Improve accuracy
     this.currentSizeBytes = JSON.stringify(Array.from(this.tables.entries())).length;
-    this.storage.put('capacity:size', this.currentSizeBytes);
+    // Fire-and-forget persistence is acceptable here because capacity metrics are
+    // advisory and eventual consistency is fine. Use void to satisfy no-floating-promises.
+    void this.storage.put('capacity:size', this.currentSizeBytes);
   }
 
   /**
@@ -520,8 +521,12 @@ export class TableShard implements DurableObject {
       try {
         await this.env.DB_EVENTS.send(event);
         this.pendingEvents = this.pendingEvents.filter((e) => e !== event);
-      } catch (error) {
-        console.error('Failed to send invalidation event:', error);
+      } catch (e) {
+        const error = e as Error;
+        // eslint-disable-next-line no-console
+        console.error(
+          `Failed to send invalidation event for shard ${this.getShardId()}: ${error.message}`
+        );
       }
     }
   }
@@ -537,7 +542,9 @@ export class TableShard implements DurableObject {
       try {
         await this.syncToD1();
       } catch (error) {
-        console.error('Periodic sync failed:', error);
+        console.error(
+          `Periodic sync failed for shard ${this.getShardId()}: ${(error as Error).message}`
+        );
       }
     }, syncInterval);
   }
@@ -555,8 +562,10 @@ export class TableShard implements DurableObject {
       // For now, just update timestamp
       this.lastSyncTimestamp = Date.now();
       await this.storage.put('sync:timestamp', this.lastSyncTimestamp);
-    } catch (error) {
-      console.error('D1 sync failed:', error);
+    } catch (e) {
+      const error = e as Error;
+      // eslint-disable-next-line no-console
+      console.error(`D1 sync failed for shard ${this.getShardId()}: ${error.message}`);
       throw error;
     }
   }

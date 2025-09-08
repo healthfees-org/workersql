@@ -17,6 +17,13 @@ binding = "APP_CACHE"
 id = "cache_namespace_id"
 preview_id = "cache_namespace_preview_id"
 
+# KV namespace for session storage (used by @astrojs/cloudflare sessions)
+[[kv_namespaces]]
+binding = "SESSION"
+# TODO: Replace the placeholder IDs below with real values from `wrangler kv namespace create SESSION`
+id = "session_namespace_id"
+preview_id = "session_namespace_preview_id"
+
 [[queues.producers]]
 binding = "DB_EVENTS"
 queue = "db-events"

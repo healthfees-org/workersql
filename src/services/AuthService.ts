@@ -3,6 +3,21 @@ import { BaseService } from './BaseService';
 import type { CloudflareEnvironment, AuthContext } from '../types';
 
 /**
+ * Represents the payload of a JWT token.
+ */
+interface JwtClaims {
+  tenant_id?: string;
+  tid?: string;
+  sub?: string;
+  user_id?: string;
+  permissions?: string | string[];
+  roles?: string | string[];
+  exp?: number;
+  nbf?: number;
+  [key: string]: unknown; // Allow other claims
+}
+
+/**
  * Authentication token validation system for Edge SQL
  * Supports JWT tokens with tenant isolation and role-based access control
  */
@@ -36,7 +51,7 @@ export class AuthService extends BaseService {
 
       // Decode payload
       const decodedPayload = this.decodeBase64Url(payload!);
-      const claims = JSON.parse(decodedPayload);
+      const claims = JSON.parse(decodedPayload) as JwtClaims;
 
       // Validate token expiration
       this.validateTokenExpiration(claims);
@@ -105,7 +120,7 @@ export class AuthService extends BaseService {
   /**
    * Validate token expiration
    */
-  private validateTokenExpiration(claims: any): void {
+  private validateTokenExpiration(claims: JwtClaims): void {
     const now = Math.floor(Date.now() / 1000);
 
     // Check expiration
@@ -122,7 +137,7 @@ export class AuthService extends BaseService {
   /**
    * Extract authentication context from JWT claims
    */
-  private async extractAuthContext(claims: any, token: string): Promise<AuthContext> {
+  private async extractAuthContext(claims: JwtClaims, token: string): Promise<AuthContext> {
     // Extract tenant ID
     const tenantId = claims.tenant_id || claims.tid;
     if (!tenantId) {
@@ -139,12 +154,17 @@ export class AuthService extends BaseService {
     // Create token hash for security
     const tokenHash = await this.hashString(token);
 
-    return {
-      tenantId,
-      userId,
-      permissions: normalizedPermissions,
+    const authContext: AuthContext = {
+      tenantId: String(tenantId),
+      permissions: normalizedPermissions.map(String),
       tokenHash,
     };
+
+    if (userId) {
+      authContext.userId = String(userId);
+    }
+
+    return authContext;
   }
 
   /**
@@ -170,7 +190,7 @@ export class AuthService extends BaseService {
   /**
    * Generate JWT token for testing (development only)
    */
-  async generateTestToken(payload: any): Promise<string> {
+  async generateTestToken(payload: Record<string, unknown>): Promise<string> {
     if (this.env.ENVIRONMENT === 'production') {
       throw new EdgeSQLError(
         'Test token generation not allowed in production',

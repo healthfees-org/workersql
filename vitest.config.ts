@@ -9,6 +9,11 @@ export default defineConfig({
     // Include patterns for test files
     include: ['tests/**/*.{test,spec}.{js,ts}'],
 
+    deps: {
+      inline: ['vitest'],
+      interopDefault: true,
+    },
+
     // Exclude patterns
     exclude: [
       'node_modules/**',

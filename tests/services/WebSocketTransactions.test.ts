@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EdgeSQLGateway } from '../../src/gateway';
+import { EdgeSQLGateway } from '@/gateway';
 
 describe('EdgeSQLGateway - WebSocket Transactions', () => {
   let gateway: EdgeSQLGateway;

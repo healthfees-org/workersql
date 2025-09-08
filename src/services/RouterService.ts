@@ -214,7 +214,7 @@ export class RouterService implements IRouterService {
    */
   async updateRoutingPolicy(policy: RoutingPolicy, description?: string): Promise<void> {
     // Use version manager for atomic updates
-    await this.versionManager.updateCurrentPolicy(policy, description);
+    await this.versionManager.updateCurrentPolicy(policy, description || 'Policy update');
 
     // Clear local cache
     this.routingPolicies.clear();
@@ -223,7 +223,7 @@ export class RouterService implements IRouterService {
   /**
    * Get routing policy version history
    */
-  async getPolicyVersions(): Promise<any[]> {
+  async getPolicyVersions(): Promise<unknown[]> {
     return this.versionManager.listVersions();
   }
 
@@ -242,7 +242,10 @@ export class RouterService implements IRouterService {
   /**
    * Get policy diff between versions
    */
-  async getPolicyDiff(fromVersion: number, toVersion: number): Promise<any> {
+  async getPolicyDiff(
+    fromVersion: number,
+    toVersion: number
+  ): Promise<import('./RoutingVersionManager').PolicyDiff> {
     return this.versionManager.getPolicyDiff(fromVersion, toVersion);
   }
 

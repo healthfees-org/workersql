@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SQLCompatibilityService } from '../../src/services/SQLCompatibilityService';
-import type { CloudflareEnvironment } from '../../src/types';
+import { SQLCompatibilityService } from '@/services/SQLCompatibilityService';
+import type { CloudflareEnvironment } from '@/types';
 
 describe('SQL Compatibility Layer Integration', () => {
   let sqlCompatibility: SQLCompatibilityService;
