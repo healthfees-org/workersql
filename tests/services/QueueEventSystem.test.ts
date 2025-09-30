@@ -61,7 +61,6 @@ describe('QueueEventSystem', () => {
       const event: DatabaseEvent = {
         type: 'invalidate',
         shardId: 'shard-1',
-        version: Date.now(),
         timestamp: Date.now(),
         keys: ['key1', 'key2'],
       };
@@ -78,7 +77,6 @@ describe('QueueEventSystem', () => {
       const event: DatabaseEvent = {
         type: 'invalidate',
         shardId: 'shard-1',
-        version: Date.now(),
         timestamp: Date.now(),
       };
 
@@ -98,7 +96,6 @@ describe('QueueEventSystem', () => {
       const invalidEvent: DatabaseEvent = {
         type: 'unknown' as any,
         shardId: 'shard-1',
-        version: Date.now(),
         timestamp: Date.now(),
       };
 
@@ -111,7 +108,6 @@ describe('QueueEventSystem', () => {
       const event: DatabaseEvent = {
         type: 'invalidate',
         shardId: 'shard-1',
-        version: Date.now(),
         timestamp: Date.now(),
       };
 
@@ -125,20 +121,21 @@ describe('QueueEventSystem', () => {
         {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         {
           type: 'prewarm',
           shardId: 'shard-2',
-          version: Date.now(),
           timestamp: Date.now(),
         },
       ];
 
       await queueSystem.sendEvents(events);
 
-      expect(mockQueue.sendBatch).toHaveBeenCalledWith([{ body: events[0] }, { body: events[1] }]);
+      expect(mockQueue.sendBatch).toHaveBeenCalledWith([
+        { body: events[0] },
+        { body: events[1] },
+      ]);
     });
 
     it('should handle empty events array', async () => {
@@ -154,7 +151,6 @@ describe('QueueEventSystem', () => {
         {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
       ];
@@ -167,13 +163,11 @@ describe('QueueEventSystem', () => {
         {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         {
           type: 'invalid' as any,
           shardId: 'shard-2',
-          version: Date.now(),
           timestamp: Date.now(),
         },
       ];
@@ -189,7 +183,6 @@ describe('QueueEventSystem', () => {
         {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
       ];
@@ -205,7 +198,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -225,7 +217,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         timestamp: Date.now(),
@@ -246,7 +237,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -271,7 +261,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -297,7 +286,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -332,7 +320,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-            version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -344,8 +331,8 @@ describe('QueueEventSystem', () => {
       await queueSystem.processMessage(message);
 
       const metrics = await queueSystem.getMetrics();
-        expect(metrics.totalProcessed).toBe(1);
-        expect(metrics.eventTypeCounts['invalidate']).toBe(1);
+      expect(metrics.totalProcessed).toBe(1);
+      expect(metrics.eventTypeCounts.invalidate).toBe(1);
     });
   });
 
@@ -370,7 +357,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -387,7 +373,7 @@ describe('QueueEventSystem', () => {
       expect(metrics.totalFailed).toBe(1);
 
       // Wait for retry delay to pass
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Retry failed events - should succeed
       await shortDelayQueue.retryFailedEvents();
@@ -583,7 +569,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'prewarm',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
           data: { test: 'value' },
@@ -608,7 +593,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'd1_sync',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         timestamp: Date.now(),
@@ -632,7 +616,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -654,7 +637,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'prewarm',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
           data: { test: 'value' },
@@ -677,7 +659,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'd1_sync',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         timestamp: Date.now(),
@@ -697,7 +678,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -742,7 +722,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -756,7 +735,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'prewarm',
           shardId: 'shard-2',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key2'],
           data: { test: 'value' },
@@ -784,7 +762,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
         },
         timestamp: Date.now(),
@@ -805,7 +782,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'prewarm',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },
@@ -831,7 +807,6 @@ describe('QueueEventSystem', () => {
         body: {
           type: 'invalidate',
           shardId: 'shard-1',
-          version: Date.now(),
           timestamp: Date.now(),
           keys: ['key1'],
         },

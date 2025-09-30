@@ -336,9 +336,7 @@ describe('SecretsService', () => {
     it('should warn about short JWT_SECRET', () => {
       const result = service.validateSecretStrength('JWT_SECRET', 'short');
       expect(result.isValid).toBe(false);
-      expect(result.warnings).toContain(
-        "Secret 'JWT_SECRET' should be at least 32 characters long"
-      );
+      expect(result.warnings).toContain("Secret 'JWT_SECRET' should be at least 32 characters long");
     });
 
     it('should warn about short DATABASE_PASSWORD', () => {
@@ -400,9 +398,7 @@ describe('SecretsService', () => {
     it('should use default minimum length for unknown keys', () => {
       const result = service.validateSecretStrength('UNKNOWN_KEY', 'short');
       expect(result.isValid).toBe(false);
-      expect(result.warnings).toContain(
-        "Secret 'UNKNOWN_KEY' should be at least 16 characters long"
-      );
+      expect(result.warnings).toContain("Secret 'UNKNOWN_KEY' should be at least 16 characters long");
     });
   });
 
