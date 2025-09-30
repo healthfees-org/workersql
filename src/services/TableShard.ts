@@ -21,10 +21,8 @@ import {
 export class TableShard implements DurableObject {
   private storage: DurableObjectStorage;
   private env: CloudflareEnvironment;
+  private state: DurableObjectState;
   private initializePromise?: Promise<void>;
-
-  // In-memory table data for fast access
-  private tables: Map<string, Map<string, Record<string, unknown>>> = new Map();
 
   // Active connections and transactions
   private connections: Map<string, ConnectionState> = new Map();
@@ -38,13 +36,19 @@ export class TableShard implements DurableObject {
   > = new Map();
 
   // Capacity tracking
-  private currentSizeBytes: number = 0;
-  private lastSyncTimestamp: number = 0;
+  private currentSizeBytes = 0;
+  private lastSizeCheck = 0;
+  private lastSyncTimestamp = 0;
 
   // Event emission queue
   private pendingEvents: DatabaseEvent[] = [];
 
+  // Simple LRU for statement strings (advisory; underlying engine may cache)
+  private stmtCache: Map<string, number> = new Map();
+  private readonly stmtCacheLimit = 200;
+
   constructor(state: DurableObjectState, env: CloudflareEnvironment) {
+    this.state = state;
     this.storage = state.storage;
     this.env = env;
   }
@@ -68,6 +72,10 @@ export class TableShard implements DurableObject {
           return this.handleDDL(request);
         case '/transaction':
           return this.handleTransaction(request);
+        case '/pitr/bookmark':
+          return this.handlePITRBookmark(request);
+        case '/pitr/restore':
+          return this.handlePITRRestore(request);
         case '/health':
           return this.handleHealth();
         case '/metrics':
@@ -103,24 +111,29 @@ export class TableShard implements DurableObject {
    * Initialize shard by loading persisted state
    */
   private async initialize(): Promise<void> {
-    // Load table schemas and data from durable storage
-    const tableNames = await this.storage.list<string>({ prefix: 'table:' });
+    // Initialize SQL schema for metadata tables used by the shard
+    // Tables:
+    //  - _events (id INTEGER PRIMARY KEY, ts INTEGER, type TEXT, payload TEXT)
+    //  - _meta   (k TEXT PRIMARY KEY, v TEXT)
+    this.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS _events (
+        id INTEGER PRIMARY KEY,
+        ts INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        payload TEXT
+      );
+      CREATE TABLE IF NOT EXISTS _meta (
+        k TEXT PRIMARY KEY,
+        v TEXT
+      );
+    `);
 
-    for (const [key] of tableNames) {
-      const tableName = key.substring(6); // Remove 'table:' prefix
-      const tableData = await this.storage.get<Map<string, Record<string, unknown>>>(key);
-
-      if (tableData) {
-        this.tables.set(tableName, new Map(tableData));
-      }
+    // Load capacity metrics (best-effort)
+    try {
+      await this.refreshCapacity();
+    } catch {
+      // ignore on cold start; will compute on-demand
     }
-
-    // Load capacity metrics
-    this.currentSizeBytes = (await this.storage.get<number>('capacity:size')) || 0;
-    this.lastSyncTimestamp = (await this.storage.get<number>('sync:timestamp')) || 0;
-
-    // Schedule periodic sync to D1
-    this.schedulePeriodicSync();
   }
 
   /**
@@ -134,7 +147,7 @@ export class TableShard implements DurableObject {
 
     this.validateTenantAccess(tenantId, query.sql);
 
-    const result = await this.executeQuery(query, tenantId);
+    const result = await this.executeSQL('SELECT', query.sql, query.params ?? [], tenantId);
 
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
@@ -145,18 +158,29 @@ export class TableShard implements DurableObject {
    * Handle INSERT, UPDATE, DELETE operations
    */
   private async handleMutation(request: Request): Promise<Response> {
-    const { query, tenantId } = (await request.json()) as {
+    const { query, tenantId, transactionId } = (await request.json()) as {
       query: QueryRequest;
       tenantId: string;
+      transactionId?: string;
     };
 
     this.validateTenantAccess(tenantId, query.sql);
-    this.checkCapacity();
+    await this.checkCapacity();
 
-    const result = await this.executeMutation(query, tenantId);
-
-    // Emit cache invalidation event
-    await this.emitInvalidationEvent(tenantId, this.extractTableName(query.sql));
+    let result: QueryResult;
+    if (transactionId) {
+      // Queue operation to be applied on COMMIT
+      const txn = this.transactions.get(transactionId);
+      if (!txn) {
+        throw new EdgeSQLError('Transaction not found', 'TRANSACTION_NOT_FOUND');
+      }
+      txn.operations.push({ sql: query.sql, params: query.params ?? [] });
+      result = { rows: [], rowsAffected: 0, metadata: { shardId: this.getShardId() } };
+    } else {
+      result = await this.executeSQL('MUTATION', query.sql, query.params ?? [], tenantId);
+      // Emit cache invalidation event
+      await this.emitInvalidationEvent(tenantId, this.extractTableName(query.sql));
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
@@ -174,9 +198,7 @@ export class TableShard implements DurableObject {
 
     this.validateTenantAccess(tenantId, query.sql);
 
-    const result = await this.executeDDL(query, tenantId);
-
-    // DDL operations invalidate all cache for the tenant
+    const result = await this.executeSQL('DDL', query.sql, query.params ?? [], tenantId);
     await this.emitInvalidationEvent(tenantId, '*');
 
     return new Response(JSON.stringify(result), {
@@ -222,6 +244,46 @@ export class TableShard implements DurableObject {
   }
 
   /**
+   * PITR bookmark endpoint: returns current bookmark or a bookmark for a given timestamp
+   */
+  private async handlePITRBookmark(request: Request): Promise<Response> {
+    const { at } = (await request.json().catch(() => ({}))) as { at?: number };
+    const bookmark = at
+      ? await this.storage.getBookmarkForTime(at)
+      : await this.storage.getCurrentBookmark();
+    return new Response(JSON.stringify({ success: true, bookmark }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
+   * PITR restore endpoint: schedules restore on next restart
+   */
+  private async handlePITRRestore(request: Request): Promise<Response> {
+    const { bookmark } = (await request.json()) as { bookmark: string };
+    if (!bookmark) {
+      return new Response(JSON.stringify({ success: false, error: 'bookmark required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    await this.storage.onNextSessionRestoreBookmark(bookmark);
+    // Attempt restart if available; otherwise caller should trigger a new session
+    try {
+      type MaybeAbort = { abort?: () => void };
+      const s = this.state as unknown as MaybeAbort;
+      if (typeof s.abort === 'function') {
+        s.abort();
+      }
+    } catch {
+      // ignore if not supported
+    }
+    return new Response(JSON.stringify({ success: true, scheduled: true, bookmark }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
    * Health check endpoint
    */
   private handleHealth(): Response {
@@ -229,7 +291,8 @@ export class TableShard implements DurableObject {
       JSON.stringify({
         status: 'healthy',
         sizeBytes: this.currentSizeBytes,
-        tables: this.tables.size,
+        // tables not directly tracked in SQLite; report via schema count
+        tables: this.getTableCountSafe(),
         connections: this.connections.size,
         transactions: this.transactions.size,
         lastSync: this.lastSyncTimestamp,
@@ -246,7 +309,7 @@ export class TableShard implements DurableObject {
   private handleMetrics(): Response {
     const metrics = {
       shard_size_bytes: this.currentSizeBytes,
-      shard_tables_count: this.tables.size,
+      shard_tables_count: this.getTableCountSafe(),
       shard_connections_active: this.connections.size,
       shard_transactions_active: this.transactions.size,
       shard_last_sync_timestamp: this.lastSyncTimestamp,
@@ -261,109 +324,88 @@ export class TableShard implements DurableObject {
   /**
    * Execute SELECT query
    */
-  private async executeQuery(query: QueryRequest, tenantId: string): Promise<QueryResult> {
-    const tableName = this.extractTableName(query.sql);
-    const table = this.tables.get(`${tenantId}:${tableName}`);
+  private async executeSQL(
+    kind: 'SELECT' | 'MUTATION' | 'DDL',
+    sql: string,
+    params: unknown[],
+    tenantId: string
+  ): Promise<QueryResult> {
+    const start = Date.now();
+    const upper = sql.trim().toUpperCase();
 
-    if (!table) {
-      return { rows: [] };
+    // Enforce prepared-style usage via bindings to avoid injection
+    this.touchStmtCache(sql);
+
+    const run = () => {
+      try {
+        // Use parameter bindings via spread args
+        const cursor = this.storage.sql.exec(sql, ...(params as unknown[]));
+        if (upper.startsWith('SELECT')) {
+          const rows = cursor.toArray();
+          return {
+            rows,
+            metadata: {
+              fromCache: false,
+              shardId: this.getShardId(),
+              executionTimeMs: Date.now() - start,
+            },
+          } satisfies QueryResult;
+        }
+
+        // For writes/DDL, compute rowsAffected and insertId when possible
+        let rowsAffected = 0;
+        try {
+          const changesCur = this.storage.sql.exec('SELECT changes() as n');
+          const one = changesCur.one() as { n?: number } | undefined;
+          rowsAffected = typeof one?.n === 'number' ? one.n : 0;
+        } catch {
+          // ignore
+        }
+        let insertId: number | undefined;
+        if (upper.startsWith('INSERT')) {
+          try {
+            const idCur = this.storage.sql.exec('SELECT last_insert_rowid() as id');
+            const one = idCur.one() as { id?: number } | undefined;
+            insertId = typeof one?.id === 'number' ? one.id : undefined;
+          } catch {
+            // ignore
+          }
+        }
+
+        return {
+          rows: [],
+          rowsAffected,
+          ...(insertId !== undefined ? { insertId } : {}),
+          metadata: {
+            shardId: this.getShardId(),
+            executionTimeMs: Date.now() - start,
+          },
+        } satisfies QueryResult;
+      } catch (e) {
+        throw this.normalizeSQLError(e as Error);
+      }
+    };
+
+    const result = await this.withRetry(run);
+
+    // For mutations/DDL, emit invalidation after success
+    if (kind !== 'SELECT') {
+      await this.emitInvalidationEvent(tenantId, this.extractTableName(sql));
+      await this.refreshCapacityIfDue();
     }
 
-    // Simple query execution - TODO: Implement proper SQL parsing
-    const rows = Array.from(table.values());
-
-    return {
-      rows,
-      metadata: {
-        fromCache: false,
-        shardId: this.getShardId(),
-        executionTimeMs: 1, // Placeholder
-      },
-    };
+    return result;
   }
 
   /**
    * Execute INSERT, UPDATE, DELETE operations
    */
-  private async executeMutation(query: QueryRequest, tenantId: string): Promise<QueryResult> {
-    const tableName = this.extractTableName(query.sql);
-    const tableKey = `${tenantId}:${tableName}`;
-
-    if (!this.tables.has(tableKey)) {
-      this.tables.set(tableKey, new Map());
-    }
-
-    const table = this.tables.get(tableKey)!;
-    const sql = query.sql.trim().toUpperCase();
-
-    let rowsAffected = 0;
-    let insertId: number | undefined;
-
-    if (sql.startsWith('INSERT')) {
-      // Simple INSERT implementation
-      const id = Date.now().toString();
-      table.set(id, { id, ...this.parseInsertValues(query.sql, query.params) });
-      rowsAffected = 1;
-      insertId = parseInt(id);
-    } else if (sql.startsWith('UPDATE')) {
-      // Simple UPDATE implementation
-      for (const [key, row] of table) {
-        table.set(key, { ...row, ...this.parseUpdateValues(query.sql, query.params) });
-        rowsAffected++;
-      }
-    } else if (sql.startsWith('DELETE')) {
-      // Simple DELETE implementation
-      const originalSize = table.size;
-      table.clear(); // Simple clear all - TODO: Implement WHERE clause
-      rowsAffected = originalSize;
-    }
-
-    // Persist to durable storage
-    await this.storage.put(`table:${tableName}`, Array.from(table.entries()));
-    this.updateCapacity();
-
-    return {
-      rows: [],
-      rowsAffected,
-      ...(insertId !== undefined && { insertId }),
-      metadata: {
-        shardId: this.getShardId(),
-        executionTimeMs: 1,
-      },
-    };
-  }
+  // removed: legacy in-memory mutation handler
 
   /**
    * Execute DDL operations
    */
-  private async executeDDL(query: QueryRequest, tenantId: string): Promise<QueryResult> {
-    const sql = query.sql.trim().toUpperCase();
-    const tableName = this.extractTableName(query.sql);
-    const tableKey = `${tenantId}:${tableName}`;
-
-    if (sql.startsWith('CREATE TABLE')) {
-      if (!this.tables.has(tableKey)) {
-        this.tables.set(tableKey, new Map());
-        await this.storage.put(`table:${tableName}`, []);
-      }
-    } else if (sql.startsWith('DROP TABLE')) {
-      if (this.tables.has(tableKey)) {
-        this.tables.delete(tableKey);
-        await this.storage.delete(`table:${tableName}`);
-      }
-    }
-
-    this.updateCapacity();
-
-    return {
-      rows: [],
-      rowsAffected: 0,
-      metadata: {
-        shardId: this.getShardId(),
-        executionTimeMs: 1,
-      },
-    };
-  }
+  // removed: legacy in-memory DDL handler
 
   /**
    * Begin a new transaction
@@ -394,23 +436,30 @@ export class TableShard implements DurableObject {
       throw new EdgeSQLError('Transaction not found', 'TRANSACTION_NOT_FOUND');
     }
 
-    // Execute all operations in transaction
-    // TODO: Implement proper transaction rollback on failure
-    for (const operation of transaction.operations) {
-      await this.executeMutation(
-        {
-          sql: operation.sql,
-          params: operation.params,
-        },
-        transaction.tenantId
-      );
+    let rowsAffected = 0;
+    try {
+      // Run all queued operations in a single synchronous transaction
+      this.storage.transactionSync(() => {
+        for (const op of transaction.operations) {
+          this.storage.sql.exec(op.sql, ...(op.params as unknown[]));
+          try {
+            const ch = this.storage.sql.exec('SELECT changes() as n').one() as { n?: number };
+            rowsAffected += typeof ch?.n === 'number' ? ch.n : 0;
+          } catch {
+            // ignore
+          }
+        }
+      });
+    } catch (e) {
+      this.transactions.delete(transactionId);
+      throw this.normalizeSQLError(e as Error);
     }
 
     this.transactions.delete(transactionId);
 
     return {
       rows: [],
-      rowsAffected: transaction.operations.length,
+      rowsAffected,
       metadata: {
         shardId: this.getShardId(),
       },
@@ -450,7 +499,8 @@ export class TableShard implements DurableObject {
   /**
    * Check shard capacity before mutations
    */
-  private checkCapacity(): void {
+  private async checkCapacity(): Promise<void> {
+    await this.refreshCapacityIfDue();
     const maxSizeBytes = parseInt(this.env.MAX_SHARD_SIZE_GB) * 1024 * 1024 * 1024;
     if (this.currentSizeBytes >= maxSizeBytes) {
       throw new ShardCapacityError(this.getShardId(), this.currentSizeBytes, maxSizeBytes);
@@ -460,12 +510,38 @@ export class TableShard implements DurableObject {
   /**
    * Update capacity metrics
    */
-  private updateCapacity(): void {
-    // Simple size calculation - TODO: Improve accuracy
-    this.currentSizeBytes = JSON.stringify(Array.from(this.tables.entries())).length;
-    // Fire-and-forget persistence is acceptable here because capacity metrics are
-    // advisory and eventual consistency is fine. Use void to satisfy no-floating-promises.
-    void this.storage.put('capacity:size', this.currentSizeBytes);
+  private async refreshCapacity(): Promise<void> {
+    try {
+      // Compute DB size via PRAGMA page_count & page_size
+      const pageCnt = this.storage.sql.exec('PRAGMA page_count').one() as
+        | { page_count?: number; [k: string]: unknown }
+        | undefined;
+      const pageSize = this.storage.sql.exec('PRAGMA page_size').one() as
+        | { page_size?: number; [k: string]: unknown }
+        | undefined;
+      const pages = typeof pageCnt?.page_count === 'number' ? pageCnt.page_count : 0;
+      const psize = typeof pageSize?.page_size === 'number' ? pageSize.page_size : 0;
+      this.currentSizeBytes = pages * psize;
+      this.lastSizeCheck = Date.now();
+      // Persist size for metrics inspection into _meta table
+      const sz = this.currentSizeBytes;
+      this.storage.sql.exec(
+        'INSERT INTO _meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v',
+        'capacity:size',
+        String(sz)
+      );
+    } catch (e) {
+      // If PRAGMA fails (unsupported locally), keep previous size
+      // eslint-disable-next-line no-console
+      console.warn(`Capacity check failed: ${(e as Error).message}`);
+    }
+  }
+
+  private async refreshCapacityIfDue(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastSizeCheck > 60_000) {
+      await this.refreshCapacity();
+    }
   }
 
   /**
@@ -479,27 +555,18 @@ export class TableShard implements DurableObject {
   }
 
   /**
-   * Parse INSERT values (simplified)
-   */
-  private parseInsertValues(_sql: string, params?: unknown[]): Record<string, unknown> {
-    // TODO: Implement proper SQL parsing
-    return { data: JSON.stringify(params || []) };
-  }
-
-  /**
-   * Parse UPDATE values (simplified)
-   */
-  private parseUpdateValues(_sql: string, params?: unknown[]): Record<string, unknown> {
-    // TODO: Implement proper SQL parsing
-    return { updated_at: Date.now(), data: JSON.stringify(params || []) };
-  }
-
-  /**
    * Get shard identifier
    */
   private getShardId(): string {
-    // TODO: Get actual shard ID from environment or state
-    return 'shard_unknown';
+    try {
+      // Derive from Durable Object ID string when available
+      type MaybeId = { id?: { toString: () => string } };
+      const s = this.state as unknown as MaybeId;
+      const id = s.id?.toString();
+      return id || 'shard_unknown';
+    } catch {
+      return 'shard_unknown';
+    }
   }
 
   /**
@@ -531,42 +598,71 @@ export class TableShard implements DurableObject {
     }
   }
 
-  /**
-   * Schedule periodic sync to D1 database
-   */
-  private schedulePeriodicSync(): void {
-    // Schedule sync every 5 minutes
-    const syncInterval = 5 * 60 * 1000;
+  // Removed: legacy periodic sync scaffolding; durable SQLite is authoritative
 
-    setInterval(async () => {
-      try {
-        await this.syncToD1();
-      } catch (error) {
-        console.error(
-          `Periodic sync failed for shard ${this.getShardId()}: ${(error as Error).message}`
-        );
-      }
-    }, syncInterval);
+  // Utilities
+  private normalizeSQLError(err: Error): EdgeSQLError {
+    const msg = err.message || String(err);
+    if (/UNIQUE constraint failed/i.test(msg)) {
+      return new EdgeSQLError('Unique constraint violation', 'CONFLICT_UNIQUE');
+    }
+    if (/database is locked|D1 DB is overloaded|Requests queued for too long/i.test(msg)) {
+      return new EdgeSQLError('Transient database busy', 'RETRYABLE');
+    }
+    if (/syntax error/i.test(msg)) {
+      return new EdgeSQLError('SQL syntax error', 'SQL_SYNTAX_ERROR');
+    }
+    return new EdgeSQLError(msg, 'SQL_ERROR');
   }
 
-  /**
-   * Sync in-memory data to D1 database for durability
-   */
-  private async syncToD1(): Promise<void> {
-    if (!this.env.PORTABLE_DB) {
-      return;
+  private async withRetry<T>(fn: () => T | Promise<T>): Promise<T> {
+    const max = 3;
+    let attempt = 0;
+    let lastErr: unknown;
+    while (attempt < max) {
+      try {
+        return await Promise.resolve(fn());
+      } catch (e) {
+        const err = this.normalizeSQLError(e as Error);
+        lastErr = err;
+        if (err.code !== 'RETRYABLE') {
+          break;
+        }
+        await this.sleep(25 * Math.pow(2, attempt) + Math.floor(Math.random() * 25));
+      }
+      attempt++;
     }
+    throw lastErr instanceof Error ? lastErr : new EdgeSQLError('Unknown error', 'UNKNOWN');
+  }
 
+  private sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  private getTableCountSafe(): number {
     try {
-      // TODO: Implement efficient incremental sync
-      // For now, just update timestamp
-      this.lastSyncTimestamp = Date.now();
-      await this.storage.put('sync:timestamp', this.lastSyncTimestamp);
-    } catch (e) {
-      const error = e as Error;
-      // eslint-disable-next-line no-console
-      console.error(`D1 sync failed for shard ${this.getShardId()}: ${error.message}`);
-      throw error;
+      const cur = this.storage.sql.exec(
+        "SELECT count(*) as n FROM sqlite_schema WHERE type='table' AND name NOT LIKE '__cf_%'"
+      );
+      const one = cur.one() as { n: number } | undefined;
+      return one?.n ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private touchStmtCache(sql: string): void {
+    // Update LRU order
+    if (this.stmtCache.has(sql)) {
+      this.stmtCache.delete(sql);
+    }
+    this.stmtCache.set(sql, Date.now());
+    // Evict
+    if (this.stmtCache.size > this.stmtCacheLimit) {
+      const first = this.stmtCache.keys().next().value as string | undefined;
+      if (first) {
+        this.stmtCache.delete(first);
+      }
     }
   }
 }

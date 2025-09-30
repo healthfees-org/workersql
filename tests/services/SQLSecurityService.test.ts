@@ -63,7 +63,7 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect DELETE injection', () => {
-      const sql = "SELECT * FROM users; DELETE FROM users";
+      const sql = 'SELECT * FROM users; DELETE FROM users';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 

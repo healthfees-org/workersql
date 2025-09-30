@@ -206,7 +206,7 @@ export class TablePolicyParser implements ITablePolicyParser {
    */
   validateRoutingPolicy(policy: RoutingPolicy): boolean {
     // Validate version
-    if (!policy.version || policy.version < 1) {
+    if (!policy.version || typeof policy.version !== 'number' || policy.version < 1) {
       return false;
     }
 

@@ -421,6 +421,7 @@ describe('TenantIsolationService', () => {
 
       prodService.auditTenantAccess(mockAuthContext, 'READ', 'users', true);
 
+
       // Give async operation time to execute
       await new Promise((resolve) => setTimeout(resolve, 10));
 
