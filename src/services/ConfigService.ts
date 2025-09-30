@@ -1,4 +1,5 @@
 import { BaseService } from './BaseService';
+import { TablePolicyParser } from './TablePolicyParser';
 import {
   CloudflareEnvironment,
   RoutingPolicy,
@@ -15,6 +16,7 @@ export class ConfigService extends BaseService {
   private cachedRoutingPolicy?: RoutingPolicy;
   private cacheExpiry?: number;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly tablePolicyParser = new TablePolicyParser();
 
   constructor(env: CloudflareEnvironment, authContext?: AuthContext) {
     super(env, authContext);
@@ -43,18 +45,33 @@ export class ConfigService extends BaseService {
     }
 
     try {
-      // In a real implementation, this would fetch from KV or a configuration service
-      // For now, return default policies
-      const defaultPolicies = this.getDefaultTablePolicies();
+      const policies: Record<string, TablePolicy> = {};
 
-      this.cachedTablePolicies = defaultPolicies;
+      // Load table policies from KV
+      const tableNames = ['users', 'orders', 'posts', 'sessions']; // Known tables, in production could be dynamic
+
+      for (const tableName of tableNames) {
+        const key = `config:table-policies:${tableName}`;
+        const yamlContent = await this.env.APP_CACHE.get(key);
+
+        if (yamlContent) {
+          const policy = await this.tablePolicyParser.parseTablePolicy(yamlContent, tableName);
+          policies[tableName] = policy;
+        } else {
+          // Fallback to default if not found
+          this.log('warn', `Table policy not found in KV for ${tableName}, using default`);
+          policies[tableName] = this.tablePolicyParser.getDefaultTablePolicy();
+        }
+      }
+
+      this.cachedTablePolicies = policies;
       this.cacheExpiry = Date.now() + this.CACHE_TTL_MS;
 
       this.log('info', 'Table policies loaded', {
-        tableCount: Object.keys(defaultPolicies).length,
+        tableCount: Object.keys(policies).length,
       });
 
-      return defaultPolicies;
+      return policies;
     } catch (error) {
       this.log('error', 'Failed to load table policies', { error: (error as Error).message });
       throw new EdgeSQLError('Failed to load table policies', 'CONFIG_LOAD_ERROR');
@@ -70,15 +87,24 @@ export class ConfigService extends BaseService {
     }
 
     try {
-      // In a real implementation, this would fetch from KV or a configuration service
-      const defaultPolicy = this.getDefaultRoutingPolicy();
+      const key = 'config:routing-policy';
+      const yamlContent = await this.env.APP_CACHE.get(key);
 
-      this.cachedRoutingPolicy = defaultPolicy;
+      let policy: RoutingPolicy;
+      if (yamlContent) {
+        policy = await this.tablePolicyParser.parseRoutingPolicy(yamlContent);
+      } else {
+        // Fallback to default
+        this.log('warn', 'Routing policy not found in KV, using default');
+        policy = this.tablePolicyParser.getDefaultRoutingPolicy();
+      }
+
+      this.cachedRoutingPolicy = policy;
       this.cacheExpiry = Date.now() + this.CACHE_TTL_MS;
 
-      this.log('info', 'Routing policy loaded', { version: defaultPolicy.version });
+      this.log('info', 'Routing policy loaded', { version: policy.version });
 
-      return defaultPolicy;
+      return policy;
     } catch (error) {
       this.log('error', 'Failed to load routing policy', { error: (error as Error).message });
       throw new EdgeSQLError('Failed to load routing policy', 'CONFIG_LOAD_ERROR');
@@ -177,6 +203,53 @@ export class ConfigService extends BaseService {
   }
 
   /**
+   * Update table policy for a specific table
+   */
+  async updateTablePolicy(tableName: string, yamlContent: string): Promise<void> {
+    try {
+      // Validate the YAML by parsing it
+      await this.tablePolicyParser.parseTablePolicy(yamlContent, tableName);
+
+      // Store in KV
+      const key = `config:table-policies:${tableName}`;
+      await this.env.APP_CACHE.put(key, yamlContent);
+
+      // Clear cache to force reload
+      this.clearCache();
+
+      this.log('info', 'Table policy updated', { tableName });
+    } catch (error) {
+      this.log('error', 'Failed to update table policy', {
+        tableName,
+        error: (error as Error).message,
+      });
+      throw new EdgeSQLError('Failed to update table policy', 'CONFIG_UPDATE_ERROR');
+    }
+  }
+
+  /**
+   * Update routing policy
+   */
+  async updateRoutingPolicy(yamlContent: string): Promise<void> {
+    try {
+      // Validate the YAML by parsing it
+      await this.tablePolicyParser.parseRoutingPolicy(yamlContent);
+
+      // Store in KV
+      const key = 'config:routing-policy';
+      await this.env.APP_CACHE.put(key, yamlContent);
+
+      // Clear cache to force reload
+      this.clearCache();
+
+      this.log('info', 'Routing policy updated');
+    } catch (error) {
+      this.log('error', 'Failed to update routing policy', { error: (error as Error).message });
+      throw new EdgeSQLError('Failed to update routing policy', 'CONFIG_UPDATE_ERROR');
+    }
+  }
+
+  /**
    * Clear configuration cache (useful for testing or forced updates)
    */
   clearCache(): void {
@@ -212,65 +285,5 @@ export class ConfigService extends BaseService {
    */
   private isCacheValid(): boolean {
     return this.cacheExpiry !== undefined && Date.now() < this.cacheExpiry;
-  }
-
-  /**
-   * Get default table policies (in production, load from external config)
-   */
-  private getDefaultTablePolicies(): Record<string, TablePolicy> {
-    return {
-      users: {
-        pk: 'id',
-        shardBy: 'tenant_id',
-        cache: {
-          mode: 'bounded',
-          ttlMs: 30000,
-          swrMs: 120000,
-          alwaysStrongColumns: ['role', 'permissions', 'balance'],
-        },
-      },
-      posts: {
-        pk: 'id',
-        shardBy: 'tenant_id',
-        cache: {
-          mode: 'bounded',
-          ttlMs: 15000,
-          swrMs: 60000,
-        },
-      },
-      sessions: {
-        pk: 'id',
-        shardBy: 'user_id',
-        cache: {
-          mode: 'strong',
-          ttlMs: 0,
-          swrMs: 0,
-        },
-      },
-    };
-  }
-
-  /**
-   * Get default routing policy (in production, load from external config)
-   */
-  private getDefaultRoutingPolicy(): RoutingPolicy {
-    return {
-      version: 1,
-      tenants: {
-        // Tenant-specific shard assignments would be populated here
-        demo: 'shard-demo',
-        test: 'shard-test',
-      },
-      ranges: [
-        {
-          prefix: '00..7f',
-          shard: 'shard-range-0',
-        },
-        {
-          prefix: '80..ff',
-          shard: 'shard-range-1',
-        },
-      ],
-    };
   }
 }

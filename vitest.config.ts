@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     // Test environment configuration
     environment: 'node',
+    globals: true,
 
     // Include patterns for test files
     include: ['tests/**/*.{test,spec}.{js,ts}'],
@@ -24,7 +25,7 @@ export default defineConfig({
 
     // Global test setup - commented out to avoid import issues
     // globalSetup: ['tests/vitest.global-setup.ts'],
-    // setupFiles: ['tests/vitest.setup.ts'],
+    setupFiles: ['tests/vitest.setup.ts'],
 
     // Coverage configuration
     coverage: {

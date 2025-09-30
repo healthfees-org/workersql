@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigService } from '@/services/ConfigService';
 import type { Env, AuthContext } from '@/types';
 
@@ -8,8 +8,13 @@ describe('ConfigService', () => {
   let mockAuthContext: AuthContext;
 
   beforeEach(() => {
+    const mockKV = {
+      get: vi.fn(),
+      put: vi.fn().mockResolvedValue(undefined),
+    };
+
     mockEnv = {
-      APP_CACHE: {} as KVNamespace,
+      APP_CACHE: mockKV as unknown as KVNamespace,
       DB_EVENTS: {} as Queue,
       SHARD: {} as DurableObjectNamespace,
       PORTABLE_DB: {} as D1Database,
@@ -19,6 +24,36 @@ describe('ConfigService', () => {
       CACHE_TTL_MS: '30000',
       CACHE_SWR_MS: '120000',
     };
+
+    // Mock KV responses
+    mockKV.get.mockImplementation((key: string) => {
+      if (key === 'config:table-policies:users') {
+        return Promise.resolve(
+          `{"primary_key": "id", "shard_by": "tenant_id", "cache": {"mode": "bounded", "ttl_ms": 30000, "swr_ms": 120000, "always_strong_columns": ["role", "permissions", "balance"]}}`
+        );
+      }
+      if (key === 'config:table-policies:orders') {
+        return Promise.resolve(
+          `{"primary_key": "order_id", "shard_by": "user_id", "cache": {"mode": "strong", "ttl_ms": 60000, "swr_ms": 300000}}`
+        );
+      }
+      if (key === 'config:table-policies:posts') {
+        return Promise.resolve(
+          `{"primary_key": "id", "shard_by": "tenant_id", "cache": {"mode": "bounded", "ttl_ms": 15000, "swr_ms": 60000}}`
+        );
+      }
+      if (key === 'config:table-policies:sessions') {
+        return Promise.resolve(
+          `{"primary_key": "id", "shard_by": "user_id", "cache": {"mode": "strong", "ttl_ms": 0, "swr_ms": 0}}`
+        );
+      }
+      if (key === 'config:routing-policy') {
+        return Promise.resolve(
+          `{"version": 1, "tenants": {"demo": "shard-demo", "test": "shard-test"}, "ranges": [{"prefix": "00..7f", "shard": "shard-range-0"}, {"prefix": "80..ff", "shard": "shard-range-1"}]}`
+        );
+      }
+      return Promise.resolve(null);
+    });
 
     mockAuthContext = {
       tenantId: 'test-tenant',
@@ -115,6 +150,41 @@ describe('ConfigService', () => {
       // Should reload on next access
       const policies = await configService.getTablePolicies();
       expect(policies).toBeDefined();
+    });
+  });
+
+  describe('updateTablePolicy', () => {
+    it('should update table policy in KV and clear cache', async () => {
+      const yamlContent = `{"primary_key": "id", "shard_by": "tenant_id", "cache": {"mode": "strong", "ttl_ms": 0, "swr_ms": 0}}`;
+
+      await configService.updateTablePolicy('users', yamlContent);
+
+      expect(mockEnv.APP_CACHE.put).toHaveBeenCalledWith(
+        'config:table-policies:users',
+        yamlContent
+      );
+    });
+
+    it('should throw error for invalid YAML', async () => {
+      const invalidYaml = 'invalid: yaml: content: ['; // Invalid JSON
+
+      await expect(configService.updateTablePolicy('users', invalidYaml)).rejects.toThrow();
+    });
+  });
+
+  describe('updateRoutingPolicy', () => {
+    it('should update routing policy in KV and clear cache', async () => {
+      const yamlContent = `{"version": 2, "tenants": {"new-tenant": "shard-new"}, "ranges": [{"prefix": "00..ff", "shard": "shard-all"}]}`;
+
+      await configService.updateRoutingPolicy(yamlContent);
+
+      expect(mockEnv.APP_CACHE.put).toHaveBeenCalledWith('config:routing-policy', yamlContent);
+    });
+
+    it('should throw error for invalid YAML', async () => {
+      const invalidYaml = 'version: not-a-number';
+
+      await expect(configService.updateRoutingPolicy(invalidYaml)).rejects.toThrow();
     });
   });
 });
