@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./promise": {
+      "import": "./dist/mysql2-compat.js",
+      "types": "./dist/mysql2-compat.d.ts"
     }
   },
   "scripts": {

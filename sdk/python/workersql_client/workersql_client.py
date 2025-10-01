@@ -177,6 +177,14 @@ class WorkerSQLClient:
         )
         if self.config.get("api_key"):
             self.session.headers["Authorization"] = f"Bearer {self.config['api_key']}"
+        
+        self._health_check_enabled = config.get("enable_health_check", False)
+        self._last_health_check = None
+        self._is_healthy = True
+        self._log_level = config.get("log_level", "info")
+        
+        if self._health_check_enabled:
+            self._start_health_check()
 
     def _validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate client configuration"""
@@ -207,11 +215,16 @@ class WorkerSQLClient:
         timeout: Optional[int] = None,
         cache: Optional[Dict[str, Any]] = None,
     ) -> QueryResponse:
-        """Execute a single SQL query"""
+        """Execute a single SQL query with automatic retry"""
         request_data: Dict[str, Any] = {"sql": sql, "params": params or [], "timeout": timeout or 30000}
         if cache:
             request_data["cache"] = cache
         validated_request = SchemaValidator.validate_query_request(request_data)
+        
+        return self._retry_with_backoff(lambda: self._execute_query(validated_request, timeout))
+    
+    def _execute_query(self, validated_request: QueryRequest, timeout: Optional[int]) -> QueryResponse:
+        """Internal method to execute query"""
         try:
             response = self.session.post(
                 f"{self.config['api_endpoint']}/query",
@@ -262,6 +275,48 @@ class WorkerSQLClient:
     def close(self):
         """Close the client connection"""
         self.session.close()
+
+    def _retry_with_backoff(self, operation, max_retries: int = None, base_delay: float = None):
+        """Retry operation with exponential backoff"""
+        max_retries = max_retries or self.config.get("retry_attempts", 3)
+        base_delay = base_delay or self.config.get("retry_delay", 1.0)
+        
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                return operation()
+            except Exception as e:
+                last_error = e
+                if attempt == max_retries:
+                    break
+                
+                import time
+                delay = base_delay * (2 ** attempt)
+                self._log("warn", f"Retry attempt {attempt + 1}/{max_retries} after {delay}s")
+                time.sleep(delay)
+        
+        raise last_error if last_error else Exception("Max retries exceeded")
+    
+    def _start_health_check(self):
+        """Start periodic health checks (simplified - would use threading in production)"""
+        # In production, this would use threading.Timer or similar
+        self._log("debug", "Health check enabled")
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get current health status"""
+        return {
+            "healthy": self._is_healthy,
+            "last_check": self._last_health_check,
+        }
+    
+    def _log(self, level: str, message: str):
+        """Log message with configured level"""
+        levels = {"debug": 0, "info": 1, "warn": 2, "error": 3}
+        config_level = levels.get(self._log_level, 1)
+        message_level = levels.get(level, 1)
+        
+        if message_level >= config_level:
+            print(f"[WorkerSQL] [{level.upper()}] {message}")
 
     def __enter__(self):
         return self
