@@ -41,7 +41,7 @@ describe('RBACService', () => {
       const schema = await service.loadSchema('tenant-123');
       expect(schema).toBeDefined();
       expect(schema.version).toBe('1.0');
-      
+
       // Second call should use cache
       const schema2 = await service.loadSchema('tenant-123');
       expect(schema2).toBe(schema);
@@ -188,7 +188,7 @@ describe('RBACService', () => {
       };
 
       await service.updateSchema('tenant-123', newSchema);
-      
+
       expect(mockEnv.APP_CACHE.put).toHaveBeenCalled();
     });
 
@@ -201,9 +201,7 @@ describe('RBACService', () => {
         policies: [],
       };
 
-      await expect(
-        service.updateSchema('tenant-123', invalidSchema)
-      ).rejects.toThrow();
+      await expect(service.updateSchema('tenant-123', invalidSchema)).rejects.toThrow();
     });
 
     it('should clear cache after updating schema', async () => {
@@ -217,10 +215,10 @@ describe('RBACService', () => {
 
       // Load schema to cache it
       await service.loadSchema('tenant-456');
-      
+
       // Update schema
       await service.updateSchema('tenant-456', newSchema);
-      
+
       // The service maintains its own cache, so we verify update was called
       expect(mockEnv.APP_CACHE.put).toHaveBeenCalled();
     });

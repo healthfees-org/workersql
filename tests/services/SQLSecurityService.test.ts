@@ -48,7 +48,7 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect UNION injection', () => {
-      const sql = "SELECT * FROM users WHERE id = 1 UNION SELECT password FROM admins";
+      const sql = 'SELECT * FROM users WHERE id = 1 UNION SELECT password FROM admins';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
@@ -58,7 +58,7 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect DROP TABLE injection', () => {
-      const sql = "SELECT * FROM users; DROP TABLE users";
+      const sql = 'SELECT * FROM users; DROP TABLE users';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
@@ -308,12 +308,12 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect hex encoding injection', () => {
-      const sql = "SELECT * FROM users WHERE name = 0x61646D696E";
+      const sql = 'SELECT * FROM users WHERE name = 0x61646D696E';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
     it('should detect CHAR function abuse', () => {
-      const sql = "SELECT * FROM users WHERE name = CHAR(65)";
+      const sql = 'SELECT * FROM users WHERE name = CHAR(65)';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
@@ -328,7 +328,7 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect SLEEP attacks', () => {
-      const sql = "SELECT * FROM users WHERE id = SLEEP(5)";
+      const sql = 'SELECT * FROM users WHERE id = SLEEP(5)';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
@@ -343,12 +343,12 @@ describe('SQLSecurityService', () => {
     });
 
     it('should detect @@version enumeration', () => {
-      const sql = "SELECT @@version";
+      const sql = 'SELECT @@version';
       expect(() => service.validateSQL(sql)).toThrow();
     });
 
     it('should detect information_schema access', () => {
-      const sql = "SELECT * FROM information_schema.tables";
+      const sql = 'SELECT * FROM information_schema.tables';
       expect(() => service.validateSQL(sql)).toThrow();
     });
   });

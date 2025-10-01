@@ -1,5 +1,39 @@
 import { vi } from 'vitest';
+import { webcrypto } from 'node:crypto';
 import type { CloudflareEnvironment } from '../src/types';
+
+// Polyfill crypto for Node.js environment
+const origCrypto = globalThis.crypto as any;
+const poly: any = origCrypto ?? webcrypto;
+if (!poly.getRandomValues) {
+  poly.getRandomValues = (array: Uint8Array) => {
+    for (let i = 0; i < array.length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+    return array;
+  };
+}
+if (!poly.randomUUID) {
+  poly.randomUUID = () => {
+    // RFC4122 v4
+    const bytes = new Uint8Array(16);
+    poly.getRandomValues(bytes);
+    // Indexing into fixed-length array is safe
+    bytes[6] = ((bytes as any)[6] & 0x0f) | 0x40;
+    bytes[8] = ((bytes as any)[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
+}
+// Only define global crypto if it's missing; avoid overriding read-only getter
+if (!origCrypto) {
+  Object.defineProperty(globalThis, 'crypto', {
+    value: poly,
+    configurable: true,
+  });
+}
 
 // Mock environment factory for unit tests
 export function createMockEnvironment(): CloudflareEnvironment {

@@ -11,3 +11,12 @@ declare global {
 }
 
 export {};
+
+// Ambient declaration for Workers Vitest pool helpers used in integration tests
+declare module 'cloudflare:test' {
+  export const env: Record<string, unknown>;
+  export const SELF: Service;
+  interface Service {
+    fetch(input: Request | string, init?: RequestInit): Promise<Response>;
+  }
+}

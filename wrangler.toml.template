@@ -1,7 +1,7 @@
 # Wrangler Configuration Template for Edge MySQL Gateway
 # Copy this file to wrangler.toml and update the placeholders with your actual values
 
-name = "edge-mysql-gateway"
+name = "workersql-gateway"
 main = "src/gateway.ts"
 compatibility_date = "2024-08-31"
 compatibility_flags = ["nodejs_compat"]
@@ -9,13 +9,13 @@ node_compat = true
 
 # Environment-specific configurations
 [env.development]
-name = "edge-mysql-gateway-dev"
+name = "workersql-gateway-dev"
 
 [env.staging]
-name = "edge-mysql-gateway-staging"
+name = "workersql-gateway-staging"
 
 [env.production]
-name = "edge-mysql-gateway-prod"
+name = "workersql-gateway-prod"
 
 # KV Namespace for caching
 # Create via: wrangler kv:namespace create "APP_CACHE"

@@ -6,15 +6,25 @@ import type { CloudflareEnvironment } from '@/types';
 class MockDurableObjectState {
   storage: any;
   id: any;
-  
+
   constructor() {
     const storageMap = new Map();
     this.storage = {
       get: vi.fn(async (key: string) => storageMap.get(key)),
       put: vi.fn(async (key: string, value: any) => storageMap.set(key, value)),
       delete: vi.fn(async (key: string) => storageMap.delete(key)),
-      list: vi.fn(async () => ({ keys: Array.from(storageMap.keys()).map(name => ({ name })) })),
+      list: vi.fn(async () => ({ keys: Array.from(storageMap.keys()).map((name) => ({ name })) })),
       deleteAll: vi.fn(async () => storageMap.clear()),
+      sql: {
+        exec: vi.fn().mockReturnValue({
+          toArray: vi.fn().mockReturnValue([]),
+          one: vi.fn().mockReturnValue(null),
+        }),
+        transactionSync: vi.fn((fn) => fn()),
+      },
+      getBookmarkForTime: vi.fn().mockResolvedValue('bookmark-123'),
+      getCurrentBookmark: vi.fn().mockResolvedValue('current-bookmark'),
+      onNextSessionRestoreBookmark: vi.fn().mockResolvedValue(undefined),
     };
     this.id = {
       toString: () => 'test-shard-id',
@@ -30,9 +40,9 @@ describe('TableShard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockState = new MockDurableObjectState();
-    
+
     mockEnv = {
       APP_CACHE: {
         get: vi.fn().mockResolvedValue(null),
@@ -65,7 +75,7 @@ describe('TableShard', () => {
     it('should handle health check requests', async () => {
       const request = new Request('http://localhost/health');
       const response = await shard.fetch(request);
-      
+
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toHaveProperty('status');
@@ -74,7 +84,7 @@ describe('TableShard', () => {
     it('should handle metrics requests', async () => {
       const request = new Request('http://localhost/metrics');
       const response = await shard.fetch(request);
-      
+
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data).toHaveProperty('shard_size_bytes');
@@ -89,7 +99,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBeLessThan(500);
     });
@@ -103,7 +113,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBeLessThan(500);
     });
@@ -116,7 +126,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBeLessThan(500);
     });
@@ -129,7 +139,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBeLessThan(500);
     });
@@ -137,7 +147,7 @@ describe('TableShard', () => {
     it('should return 404 for unknown paths', async () => {
       const request = new Request('http://localhost/unknown');
       const response = await shard.fetch(request);
-      
+
       expect(response.status).toBe(404);
     });
 
@@ -146,7 +156,7 @@ describe('TableShard', () => {
         method: 'POST',
         body: 'invalid json',
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBe(500);
       const data = await response.json();
@@ -158,16 +168,16 @@ describe('TableShard', () => {
     it('should return healthy status', async () => {
       const request = new Request('http://localhost/health');
       const response = await shard.fetch(request);
-      
+
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = (await response.json()) as any;
       expect(data.status).toBe('healthy');
     });
 
     it('should include capacity info', async () => {
       const request = new Request('http://localhost/health');
       const response = await shard.fetch(request);
-      
+
       const data = await response.json();
       // Just verify we get a health response
       expect(data).toBeDefined();
@@ -178,7 +188,7 @@ describe('TableShard', () => {
     it('should return shard metrics', async () => {
       const request = new Request('http://localhost/metrics');
       const response = await shard.fetch(request);
-      
+
       // May return 500 if not fully initialized - that's OK for testing
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -187,7 +197,7 @@ describe('TableShard', () => {
     it('should return numeric values', async () => {
       const request = new Request('http://localhost/metrics');
       const response = await shard.fetch(request);
-      
+
       const data = await response.json();
       // Just verify we get a response
       expect(data).toBeDefined();
@@ -204,7 +214,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -219,7 +229,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -234,7 +244,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       const data = await response.json();
       expect(data).toBeDefined();
@@ -251,7 +261,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -266,7 +276,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -281,7 +291,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -296,7 +306,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       await shard.fetch(request);
       // Events are emitted asynchronously
     });
@@ -311,7 +321,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -325,7 +335,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -339,7 +349,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -355,7 +365,7 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -370,7 +380,7 @@ describe('TableShard', () => {
           transactionId: 'tx-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -385,7 +395,7 @@ describe('TableShard', () => {
           transactionId: 'tx-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -396,7 +406,7 @@ describe('TableShard', () => {
     it('should track shard size', async () => {
       const request = new Request('http://localhost/metrics');
       const response = await shard.fetch(request);
-      
+
       const data = await response.json();
       // Just verify we get a response
       expect(data).toBeDefined();
@@ -407,7 +417,7 @@ describe('TableShard', () => {
       // For now, just verify the metric exists
       const request = new Request('http://localhost/metrics');
       const response = await shard.fetch(request);
-      
+
       const data = await response.json();
       // Just verify we get a response
       expect(data).toBeDefined();
@@ -420,7 +430,7 @@ describe('TableShard', () => {
         method: 'POST',
         body: '',
       });
-      
+
       const response = await shard.fetch(request);
       expect(response.status).toBe(500);
     });
@@ -433,7 +443,7 @@ describe('TableShard', () => {
           params: [],
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
@@ -448,33 +458,32 @@ describe('TableShard', () => {
           tenantId: 'tenant-123',
         }),
       });
-      
+
       const response = await shard.fetch(request);
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
     });
 
     it('should handle concurrent requests', async () => {
-      const requests = Array.from({ length: 5 }, (_, i) => 
-        new Request('http://localhost/query', {
-          method: 'POST',
-          body: JSON.stringify({
-            sql: `SELECT * FROM users WHERE id = ${i}`,
-            params: [],
-            tenantId: 'tenant-123',
-          }),
-        })
+      const requests = Array.from(
+        { length: 5 },
+        (_, i) =>
+          new Request('http://localhost/query', {
+            method: 'POST',
+            body: JSON.stringify({
+              sql: `SELECT * FROM users WHERE id = ${i}`,
+              params: [],
+              tenantId: 'tenant-123',
+            }),
+          })
       );
-      
-      const responses = await Promise.all(
-        requests.map(req => shard.fetch(req))
-      );
-      
-      responses.forEach(response => {
+
+      const responses = await Promise.all(requests.map((req) => shard.fetch(req)));
+
+      responses.forEach((response) => {
         expect(response).toBeDefined();
         expect(response.status).toBeGreaterThan(0);
       });
     });
-
   });
 });

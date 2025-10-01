@@ -47,7 +47,7 @@ describe('EdgeSQLGateway', () => {
   describe('handleHealthCheck', () => {
     it('should return healthy status', () => {
       const response = gateway.handleHealthCheck();
-      
+
       expect(response.status).toBe(200);
       expect(response.headers.get('Content-Type')).toBe('application/json');
     });
@@ -55,16 +55,16 @@ describe('EdgeSQLGateway', () => {
     it('should include version and timestamp', async () => {
       const response = gateway.handleHealthCheck();
       const data = await response.json();
-      
+
       expect(data).toHaveProperty('status', 'healthy');
       expect(data).toHaveProperty('version');
       expect(data).toHaveProperty('timestamp');
     });
 
-    it('should include uptime', async () => {
+    it('should return health check data', async () => {
       const response = gateway.handleHealthCheck();
-      const data = await response.json();
-      
+      const data = (await response.json()) as any;
+
       expect(data).toHaveProperty('uptime');
       expect(typeof data.uptime).toBe('number');
     });
@@ -73,7 +73,7 @@ describe('EdgeSQLGateway', () => {
   describe('handleMetrics', () => {
     it('should return metrics data', () => {
       const response = gateway.handleMetrics();
-      
+
       expect(response.status).toBe(200);
       expect(response.headers.get('Content-Type')).toBe('application/json');
     });
@@ -81,7 +81,7 @@ describe('EdgeSQLGateway', () => {
     it('should include connection metrics', async () => {
       const response = gateway.handleMetrics();
       const data = await response.json();
-      
+
       expect(data).toBeDefined();
     });
   });
@@ -92,7 +92,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users',
@@ -135,7 +135,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users',
@@ -151,7 +151,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: 'invalid json',
       });
@@ -165,7 +165,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           params: [],
@@ -183,7 +183,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users WHERE id = ?',
@@ -200,7 +200,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'INSERT INTO users (name, email) VALUES (?, ?)',
@@ -217,7 +217,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'UPDATE users SET name = ? WHERE id = ?',
@@ -234,7 +234,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'DELETE FROM users WHERE id = ?',
@@ -251,7 +251,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'CREATE TABLE test (id INT, name TEXT)',
@@ -294,8 +294,8 @@ describe('EdgeSQLGateway', () => {
       const request = new Request('http://localhost/sql', {
         method: 'GET',
         headers: {
-          'Upgrade': 'websocket',
-          'Connection': 'Upgrade',
+          Upgrade: 'websocket',
+          Connection: 'Upgrade',
           'Sec-WebSocket-Key': 'test-key',
           'Sec-WebSocket-Version': '13',
         },
@@ -309,11 +309,11 @@ describe('EdgeSQLGateway', () => {
       const request = new Request('http://localhost/sql', {
         method: 'GET',
         headers: {
-          'Upgrade': 'websocket',
-          'Connection': 'Upgrade',
+          Upgrade: 'websocket',
+          Connection: 'Upgrade',
           'Sec-WebSocket-Key': 'test-key',
           'Sec-WebSocket-Version': '13',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
       });
 
@@ -329,7 +329,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: null, // Invalid SQL
@@ -388,7 +388,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users',
@@ -396,7 +396,7 @@ describe('EdgeSQLGateway', () => {
       });
 
       await gateway.handleRequest(request);
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -404,12 +404,12 @@ describe('EdgeSQLGateway', () => {
   describe('Performance', () => {
     it('should handle requests in reasonable time', async () => {
       const start = Date.now();
-      
+
       const request = new Request('http://localhost/sql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users',
@@ -417,30 +417,30 @@ describe('EdgeSQLGateway', () => {
       });
 
       await gateway.handleRequest(request);
-      
+
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(5000); // Should complete in under 5 seconds
     });
 
     it('should handle concurrent requests', async () => {
-      const requests = Array.from({ length: 5 }, () => 
-        new Request('http://localhost/sql', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-token',
-          },
-          body: JSON.stringify({
-            sql: 'SELECT * FROM users',
-          }),
-        })
+      const requests = Array.from(
+        { length: 5 },
+        () =>
+          new Request('http://localhost/sql', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer test-token',
+            },
+            body: JSON.stringify({
+              sql: 'SELECT * FROM users',
+            }),
+          })
       );
 
-      const responses = await Promise.all(
-        requests.map(req => gateway.handleRequest(req))
-      );
+      const responses = await Promise.all(requests.map((req) => gateway.handleRequest(req)));
 
-      responses.forEach(response => {
+      responses.forEach((response) => {
         expect(response).toBeDefined();
       });
     });
@@ -452,7 +452,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: '',
       });
@@ -463,12 +463,12 @@ describe('EdgeSQLGateway', () => {
 
     it('should handle large payloads', async () => {
       const largeParams = Array.from({ length: 100 }, (_, i) => `value-${i}`);
-      
+
       const request = new Request('http://localhost/sql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: `SELECT * FROM users WHERE id IN (${largeParams.map(() => '?').join(',')})`,
@@ -485,7 +485,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: "SELECT * FROM users WHERE name = 'O''Brien'",
@@ -501,7 +501,7 @@ describe('EdgeSQLGateway', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain',
-          'Authorization': 'Bearer test-token',
+          Authorization: 'Bearer test-token',
         },
         body: JSON.stringify({
           sql: 'SELECT * FROM users',

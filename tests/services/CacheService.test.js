@@ -1,15 +1,18 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CacheService } from '@/services/CacheService';
+
 describe('CacheService', () => {
   let cacheService;
   let mockEnv;
   let mockAuthContext;
   let mockKVNamespace;
+
   beforeEach(() => {
     mockKVNamespace = {
-      get: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
-      list: jest.fn(),
+      get: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      list: vi.fn(),
     };
     mockEnv = {
       APP_CACHE: mockKVNamespace,

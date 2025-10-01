@@ -38,20 +38,20 @@ repos:
     hooks:
       - id: eslint
         name: ESLint
-        entry: npx eslint --fix --ignore-path .eslintignore --quiet
+        entry: bunx eslint --fix --ignore-path .eslintignore --quiet --ignore-pattern 'tests/integration/**' --ignore-pattern 'vitest.workspace.ts'
         language: node
         files: \.(ts|js)$
         exclude: (node_modules/|\.github/instructions/|sdk/)
       - id: prettier
         name: Prettier
-        entry: npx prettier --write --ignore-path .prettierignore --log-level warn
+        entry: bunx prettier --write --ignore-path .prettierignore --log-level warn
         language: node
         pass_filenames: true
         files: \.(ts|js|json|md|ya?ml)$
         exclude: (node_modules/|\.github/instructions/|sdk/|dist/|build/|coverage/|^\.pre-commit-config\.yaml$)
       - id: typescript-check
         name: TypeScript Check
-        entry: npx tsc --noEmit --skipLibCheck
+        entry: bunx tsc --noEmit --skipLibCheck
         language: node
         pass_filenames: false
         files: ''

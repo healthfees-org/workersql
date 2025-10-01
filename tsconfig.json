@@ -51,6 +51,7 @@
     "build",
     "coverage",
     "sdk/**/*",
+    "tests/integration/**",
     "**/*.js"
   ]
 }

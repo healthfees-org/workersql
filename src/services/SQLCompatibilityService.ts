@@ -34,11 +34,7 @@ export class SQLCompatibilityService extends BaseService {
     CURTIME: "TIME('now')",
     DATE: 'DATE',
     TIME: 'TIME',
-    MONTH: 'STRFTIME',
-    DAY: 'STRFTIME',
-    HOUR: 'STRFTIME',
-    MINUTE: 'STRFTIME',
-    SECOND: 'STRFTIME',
+    // MONTH, DAY, HOUR, MINUTE, SECOND handled specifically
     UNIX_TIMESTAMP: 'STRFTIME',
 
     // Math functions
@@ -371,10 +367,14 @@ export class SQLCompatibilityService extends BaseService {
     converted = converted.replace(/\bCURTIME\s*\(\s*\)/gi, "TIME('now')");
 
     // Handle YEAR() function specifically
-    converted = converted.replace(/\bYEAR\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%Y', $1)");
+    converted = converted.replace(/\bYEAR\s*\(\s*([^)]+)\s*\)/gi, (_m, p1) => {
+      return `STRFTIME('%Y', ${String(p1).toLowerCase()})`;
+    });
 
     // Handle MONTH() function specifically
-    converted = converted.replace(/\bMONTH\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%m', $1)");
+    converted = converted.replace(/\bMONTH\s*\(\s*([^)]+)\s*\)/gi, (_m, p1) => {
+      return `STRFTIME('%m', ${String(p1).toLowerCase()})`;
+    });
 
     // Handle DAY() function specifically
     converted = converted.replace(/\bDAY\s*\(\s*([^)]+)\s*\)/gi, "STRFTIME('%d', $1)");

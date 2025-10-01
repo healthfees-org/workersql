@@ -173,7 +173,8 @@ describe('BaseService', () => {
 
       testService.testLog('info', 'Test message');
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"tenantId":null'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"message":"Test message"'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.not.stringContaining('"tenantId"'));
     });
 
     it('should log with undefined meta', () => {
@@ -274,30 +275,43 @@ describe('BaseService', () => {
   });
 
   describe('hashString', () => {
-    it('should hash string using SHA-256', async () => {
-      mockDigest.mockClear();
-      const input = 'test string';
-      const hash = await service.testHashString(input);
+    let mockDigest: any;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockDigest = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+      vi.stubGlobal('crypto', {
+        subtle: {
+          digest: mockDigest,
+        },
+      });
+    });
+
+    it('should hash a string using SHA-256', async () => {
+      const testService = new TestService(mockEnv);
+
+      const result = await testService.testHashString('test');
 
       expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
-      expect(hash).toBe('0102030405060708');
+      expect(result).toBe('0102030405060708');
     });
 
     it('should handle empty string', async () => {
-      mockDigest.mockClear();
-      const hash = await service.testHashString('');
+      const testService = new TestService(mockEnv);
+
+      const result = await testService.testHashString('');
 
       expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
-      expect(hash).toBe('0102030405060708');
+      expect(result).toBe('0102030405060708');
     });
 
     it('should handle special characters', async () => {
-      mockDigest.mockClear();
-      const input = 'test@#$%^&*()';
-      const hash = await service.testHashString(input);
+      const testService = new TestService(mockEnv);
+
+      const result = await testService.testHashString('test@#$%^&*()');
 
       expect(mockDigest).toHaveBeenCalledWith('SHA-256', expect.any(Uint8Array));
-      expect(hash).toBe('0102030405060708');
+      expect(result).toBe('0102030405060708');
     });
   });
 

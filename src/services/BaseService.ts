@@ -1,4 +1,4 @@
-import { Env, AuthContext, EdgeSQLError } from '@/types';
+import { Env, AuthContext, EdgeSQLError } from '../types';
 
 /**
  * Base service class providing common functionality for all services

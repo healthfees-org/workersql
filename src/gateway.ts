@@ -456,10 +456,13 @@ export class EdgeSQLGateway {
    * Handle SELECT queries with caching and shard routing
    */
   private async handleSelect(query: SQLQuery, tenantId: string): Promise<WorkerResponse> {
-    const cacheKey = `${tenantId}:${query.tableName}:${JSON.stringify(query)}`;
-
-    // Check cache first
-    const cached = await this.cacheService.get(cacheKey);
+    // Check materialized query cache first
+    const cached = await this.cacheService.getMaterialized(
+      tenantId,
+      query.tableName,
+      query.sql,
+      query.params
+    );
     if (cached) {
       return {
         success: true,
@@ -493,12 +496,19 @@ export class EdgeSQLGateway {
     const data = await result.json<WorkerResponse>();
     const executionTime = Date.now() - startTime;
 
-    // Cache the result
+    // Cache the result as a materialized query
     this._ctx.waitUntil(
-      this.cacheService.set(cacheKey, data.data, {
-        ttlMs: this.configService.getCacheTTL(),
-        swrMs: this.configService.getCacheSWR(),
-      })
+      this.cacheService.setMaterialized(
+        tenantId,
+        query.tableName,
+        query.sql,
+        query.params,
+        data.data,
+        {
+          ttlMs: this.configService.getCacheTTL(),
+          swrMs: this.configService.getCacheSWR(),
+        }
+      )
     );
 
     return {
@@ -625,7 +635,7 @@ export class EdgeSQLGateway {
    * Invalidate cache entries for a specific table
    */
   private invalidateCache(tenantId: string, tableName: string): Promise<void> {
-    const pattern = `${tenantId}:${tableName}:*`;
+    const pattern = `${tenantId}:q:${tableName}:*`;
     return this.cacheService.deleteByPattern(pattern);
   }
 
@@ -633,7 +643,7 @@ export class EdgeSQLGateway {
    * Invalidate all cache entries for a tenant
    */
   private invalidateAllCache(tenantId: string): Promise<void> {
-    const pattern = `${tenantId}:*`;
+    const pattern = `${tenantId}:q:*`;
     return this.cacheService.deleteByPattern(pattern);
   }
 
@@ -821,3 +831,6 @@ export class EdgeSQLGateway {
     });
   }
 }
+
+// Export Durable Object classes for Wrangler
+export { TableShard } from './services/TableShard';

@@ -89,11 +89,34 @@ describe('AuthService', () => {
     });
 
     it('should throw for expired token', async () => {
+      // Create an expired token manually instead of using generateTestToken
+      const header = { alg: 'HS256', typ: 'JWT' };
       const payload = {
         tenant_id: 'tenant123',
-        exp: Math.floor(Date.now() / 1000) - 100,
+        exp: Math.floor(Date.now() / 1000) - 100, // Expired 100 seconds ago
+        iat: Math.floor(Date.now() / 1000) - 200,
       };
-      const token = await authService.generateTestToken(payload);
+
+      const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+      const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+      // Generate signature
+      const secret = mockEnv.JWT_SECRET || 'test-secret-key';
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(secret);
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const signatureData = encoder.encode(`${encodedHeader}.${encodedPayload}`);
+      const signature = await crypto.subtle.sign('HMAC', key, signatureData);
+      const encodedSignature = authService['encodeBase64Url'](new Uint8Array(signature));
+
+      const token = `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 
       await expect(authService.validateToken(token)).rejects.toThrow(EdgeSQLError);
     });
@@ -238,11 +261,40 @@ describe('AuthService', () => {
     });
 
     it('should cover validateTokenExpiration through expired token test', async () => {
+      // Create an expired token manually
+      const header = { alg: 'HS256', typ: 'JWT' };
       const payload = {
         tenant_id: 'tenant123',
-        exp: Math.floor(Date.now() / 1000) - 100,
+        exp: Math.floor(Date.now() / 1000) - 100, // Expired 100 seconds ago
+        iat: Math.floor(Date.now() / 1000) - 200,
       };
-      const token = await authService.generateTestToken(payload);
+
+      const encodedHeader = btoa(JSON.stringify(header))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+      const encodedPayload = btoa(JSON.stringify(payload))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+
+      // Generate signature
+      const secret = mockEnv.JWT_SECRET || 'test-secret-key';
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(secret);
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const signatureData = encoder.encode(`${encodedHeader}.${encodedPayload}`);
+      const signature = await crypto.subtle.sign('HMAC', key, signatureData);
+      const encodedSignature = authService['encodeBase64Url'](new Uint8Array(signature));
+
+      const token = `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 
       await expect(authService.validateToken(token)).rejects.toThrow(EdgeSQLError);
     });
