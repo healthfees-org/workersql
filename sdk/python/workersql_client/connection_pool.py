@@ -209,6 +209,42 @@ class ConnectionPool:
                 "max_connections": self.max_connections,
             }
 
+    def get_detailed_stats(self) -> Dict[str, Any]:
+        """Get enhanced pool statistics with detailed metrics"""
+        with self.lock:
+            connections_list = list(self.connections.values())
+            active = sum(1 for c in connections_list if c.in_use)
+            total_requests = sum(c.use_count for c in connections_list)
+            average_use_count = total_requests / len(connections_list) if connections_list else 0
+            
+            now = time.time()
+            oldest_connection = min((c.created_at for c in connections_list), default=None)
+            newest_connection = max((c.created_at for c in connections_list), default=None)
+
+            return {
+                "total": len(self.connections),
+                "active": active,
+                "idle": len(self.connections) - active,
+                "min_connections": self.min_connections,
+                "max_connections": self.max_connections,
+                "total_requests": total_requests,
+                "average_use_count": average_use_count,
+                "oldest_connection": oldest_connection,
+                "newest_connection": newest_connection,
+                "connections": [
+                    {
+                        "id": c.id,
+                        "in_use": c.in_use,
+                        "created_at": c.created_at,
+                        "last_used": c.last_used,
+                        "use_count": c.use_count,
+                        "age_seconds": now - c.created_at,
+                        "idle_seconds": now - c.last_used
+                    }
+                    for c in connections_list
+                ]
+            }
+
     def close(self) -> None:
         """Close the pool and all connections"""
         self.closed = True
