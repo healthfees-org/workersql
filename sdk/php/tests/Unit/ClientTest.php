@@ -46,22 +46,22 @@ class ClientTest extends TestCase
 
         $mock = new MockHandler([$mockResponse]);
         $handlerStack = HandlerStack::create($mock);
-        
+
         // Create client with mocked Guzzle
         $reflection = new \ReflectionClass(Client::class);
         $client = $reflection->newInstanceWithoutConstructor();
-        
+
         $httpClientProperty = $reflection->getProperty('httpClient');
         $httpClientProperty->setAccessible(true);
         $httpClientProperty->setValue($client, new GuzzleClient(['handler' => $handlerStack]));
-        
+
         $configProperty = $reflection->getProperty('config');
         $configProperty->setAccessible(true);
         $configProperty->setValue($client, [
             'api_endpoint' => 'https://api.test.com/v1',
             'retry_attempts' => 3,
         ]);
-        
+
         $retryProperty = $reflection->getProperty('retryStrategy');
         $retryProperty->setAccessible(true);
         $retryProperty->setValue($client, new \WorkerSQL\RetryStrategy());
@@ -83,21 +83,21 @@ class ClientTest extends TestCase
 
         $mock = new MockHandler([$mockResponse]);
         $handlerStack = HandlerStack::create($mock);
-        
+
         $reflection = new \ReflectionClass(Client::class);
         $client = $reflection->newInstanceWithoutConstructor();
-        
+
         $httpClientProperty = $reflection->getProperty('httpClient');
         $httpClientProperty->setAccessible(true);
         $httpClientProperty->setValue($client, new GuzzleClient(['handler' => $handlerStack]));
-        
+
         $configProperty = $reflection->getProperty('config');
         $configProperty->setAccessible(true);
         $configProperty->setValue($client, [
             'api_endpoint' => 'https://api.test.com/v1',
             'retry_attempts' => 3,
         ]);
-        
+
         $retryProperty = $reflection->getProperty('retryStrategy');
         $retryProperty->setAccessible(true);
         $retryProperty->setValue($client, new \WorkerSQL\RetryStrategy());
@@ -119,21 +119,21 @@ class ClientTest extends TestCase
 
         $mock = new MockHandler([$mockResponse]);
         $handlerStack = HandlerStack::create($mock);
-        
+
         $reflection = new \ReflectionClass(Client::class);
         $client = $reflection->newInstanceWithoutConstructor();
-        
+
         $httpClientProperty = $reflection->getProperty('httpClient');
         $httpClientProperty->setAccessible(true);
         $httpClientProperty->setValue($client, new GuzzleClient(['handler' => $handlerStack]));
-        
+
         $configProperty = $reflection->getProperty('config');
         $configProperty->setAccessible(true);
         $configProperty->setValue($client, [
             'api_endpoint' => 'https://api.test.com/v1',
             'retry_attempts' => 3,
         ]);
-        
+
         $retryProperty = $reflection->getProperty('retryStrategy');
         $retryProperty->setAccessible(true);
         $retryProperty->setValue($client, new \WorkerSQL\RetryStrategy());
@@ -160,21 +160,21 @@ class ClientTest extends TestCase
 
         $mock = new MockHandler([$mockResponse]);
         $handlerStack = HandlerStack::create($mock);
-        
+
         $reflection = new \ReflectionClass(Client::class);
         $client = $reflection->newInstanceWithoutConstructor();
-        
+
         $httpClientProperty = $reflection->getProperty('httpClient');
         $httpClientProperty->setAccessible(true);
         $httpClientProperty->setValue($client, new GuzzleClient(['handler' => $handlerStack]));
-        
+
         $configProperty = $reflection->getProperty('config');
         $configProperty->setAccessible(true);
         $configProperty->setValue($client, [
             'api_endpoint' => 'https://api.test.com/v1',
             'retry_attempts' => 3,
         ]);
-        
+
         $retryProperty = $reflection->getProperty('retryStrategy');
         $retryProperty->setAccessible(true);
         $retryProperty->setValue($client, new \WorkerSQL\RetryStrategy());
@@ -190,12 +190,12 @@ class ClientTest extends TestCase
         $reflection = new \ReflectionClass(Client::class);
         $method = $reflection->getMethod('configFromDSN');
         $method->setAccessible(true);
-        
+
         $client = $reflection->newInstanceWithoutConstructor();
         $parsed = \WorkerSQL\DSNParser::parse(
             'workersql://user:pass@api.test.com:8787/mydb?apiKey=test-key&retryAttempts=5'
         );
-        
+
         $config = $method->invoke($client, $parsed);
 
         $this->assertEquals('api.test.com', $config['host']);

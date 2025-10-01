@@ -33,7 +33,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Bind a value to a parameter
-     * 
+     *
      * @param string|int $param Parameter identifier
      * @param mixed $value Parameter value
      * @param int $type Data type
@@ -53,7 +53,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Bind a parameter to a variable
-     * 
+     *
      * @param string|int $param Parameter identifier
      * @param mixed $var Variable to bind
      * @param int $type Data type
@@ -74,7 +74,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Execute the prepared statement
-     * 
+     *
      * @param array|null $params Input parameters
      * @return bool
      */
@@ -82,7 +82,7 @@ class WorkerSQLPDOStatement extends PDOStatement
     {
         try {
             $finalParams = $params ?? array_values($this->params);
-            
+
             // Convert named parameters in query to positional
             $query = $this->queryString;
             if (str_contains($query, ':')) {
@@ -93,17 +93,17 @@ class WorkerSQLPDOStatement extends PDOStatement
                     }
                 }
             }
-            
+
             // If in transaction, queue the query
             if ($this->pdo->inTransaction()) {
                 $this->pdo->addTransactionQuery($query, $finalParams);
                 $this->result = ['success' => true, 'data' => []];
                 return true;
             }
-            
+
             // Execute query
             $this->result = $this->client->query($query, $finalParams);
-            
+
             if (!$this->result['success']) {
                 $error = $this->result['error'] ?? [];
                 $this->errorInfo = [
@@ -113,12 +113,12 @@ class WorkerSQLPDOStatement extends PDOStatement
                 ];
                 return false;
             }
-            
+
             // Store last insert ID if available
             if (isset($this->result['lastInsertId'])) {
                 $this->lastInsertId = $this->result['lastInsertId'];
             }
-            
+
             $this->position = 0;
             $this->errorInfo = ['00000', null, null];
             return true;
@@ -130,7 +130,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Fetch the next row
-     * 
+     *
      * @param int|null $mode Fetch mode
      * @param int $cursorOrientation Cursor orientation
      * @param int $cursorOffset Cursor offset
@@ -142,18 +142,18 @@ class WorkerSQLPDOStatement extends PDOStatement
         int $cursorOffset = 0
     ): mixed {
         $mode = $mode ?? $this->fetchMode;
-        
+
         if ($this->result === null || !isset($this->result['data'])) {
             return false;
         }
-        
+
         $data = $this->result['data'];
         if (!isset($data[$this->position])) {
             return false;
         }
-        
+
         $row = $data[$this->position++];
-        
+
         return match ($mode) {
             PDO::FETCH_ASSOC => $row,
             PDO::FETCH_NUM => array_values($row),
@@ -165,7 +165,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Fetch all rows
-     * 
+     *
      * @param int|null $mode Fetch mode
      * @param mixed ...$args Additional arguments
      * @return array
@@ -173,14 +173,14 @@ class WorkerSQLPDOStatement extends PDOStatement
     public function fetchAll(?int $mode = null, mixed ...$args): array
     {
         $mode = $mode ?? $this->fetchMode;
-        
+
         if ($this->result === null || !isset($this->result['data'])) {
             return [];
         }
-        
+
         $data = $this->result['data'];
         $results = [];
-        
+
         foreach ($data as $row) {
             $results[] = match ($mode) {
                 PDO::FETCH_ASSOC => $row,
@@ -191,13 +191,13 @@ class WorkerSQLPDOStatement extends PDOStatement
                 default => $row,
             };
         }
-        
+
         return $results;
     }
 
     /**
      * Fetch a single column from the next row
-     * 
+     *
      * @param int $column Column number
      * @return mixed
      */
@@ -209,7 +209,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Fetch the next row as an object
-     * 
+     *
      * @param string|null $class Class name
      * @param array $constructorArgs Constructor arguments
      * @return object|false
@@ -220,11 +220,11 @@ class WorkerSQLPDOStatement extends PDOStatement
         if ($row === false) {
             return false;
         }
-        
+
         if ($class === "stdClass") {
             return (object)$row;
         }
-        
+
         // Create instance and populate properties
         $object = new $class(...$constructorArgs);
         foreach ($row as $key => $value) {
@@ -235,7 +235,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Set the fetch mode
-     * 
+     *
      * @param int $mode Fetch mode
      * @param mixed ...$args Additional arguments
      * @return bool
@@ -248,7 +248,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Get the number of rows affected
-     * 
+     *
      * @return int
      */
     public function rowCount(): int
@@ -256,21 +256,21 @@ class WorkerSQLPDOStatement extends PDOStatement
         if ($this->result === null) {
             return 0;
         }
-        
+
         if (isset($this->result['rowsAffected'])) {
             return $this->result['rowsAffected'];
         }
-        
+
         if (isset($this->result['data'])) {
             return count($this->result['data']);
         }
-        
+
         return 0;
     }
 
     /**
      * Get the number of columns
-     * 
+     *
      * @return int
      */
     public function columnCount(): int
@@ -278,13 +278,13 @@ class WorkerSQLPDOStatement extends PDOStatement
         if ($this->result === null || !isset($this->result['data']) || empty($this->result['data'])) {
             return 0;
         }
-        
+
         return count($this->result['data'][0] ?? []);
     }
 
     /**
      * Get error code
-     * 
+     *
      * @return string|null
      */
     public function errorCode(): ?string
@@ -294,7 +294,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Get error info
-     * 
+     *
      * @return array
      */
     public function errorInfo(): array
@@ -304,7 +304,7 @@ class WorkerSQLPDOStatement extends PDOStatement
 
     /**
      * Get last insert ID
-     * 
+     *
      * @internal
      */
     public function getLastInsertId(): ?int

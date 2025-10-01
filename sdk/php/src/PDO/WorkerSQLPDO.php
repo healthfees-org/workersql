@@ -10,7 +10,7 @@ use WorkerSQL\ValidationException;
 
 /**
  * PDO-compatible WorkerSQL Driver
- * 
+ *
  * Drop-in replacement for PDO that uses WorkerSQL HTTP API.
  * Compatible with WordPress, Laravel, Symfony, and other PDO-based applications.
  */
@@ -24,7 +24,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Create a new PDO instance
-     * 
+     *
      * @param string $dsn Data Source Name (workersql://...)
      * @param string|null $username Username (optional, can be in DSN)
      * @param string|null $password Password (optional, can be in DSN)
@@ -37,10 +37,10 @@ class WorkerSQLPDO extends BasePDO
         ?array $options = null
     ) {
         // Don't call parent constructor as we're overriding everything
-        
+
         // Parse DSN and create WorkerSQL client
         $this->client = new Client($dsn);
-        
+
         // Set default attributes
         $this->attributes = [
             BasePDO::ATTR_ERRMODE => BasePDO::ERRMODE_EXCEPTION,
@@ -48,7 +48,7 @@ class WorkerSQLPDO extends BasePDO
             BasePDO::ATTR_EMULATE_PREPARES => false,
             BasePDO::ATTR_STRINGIFY_FETCHES => false,
         ];
-        
+
         // Apply custom options
         if ($options) {
             foreach ($options as $key => $value) {
@@ -59,7 +59,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Prepare a statement for execution
-     * 
+     *
      * @param string $query SQL query with named (:name) or positional (?) placeholders
      * @param array $options Driver options
      * @return WorkerSQLPDOStatement|false
@@ -80,7 +80,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Execute a SQL statement and return the number of affected rows
-     * 
+     *
      * @param string $query SQL query
      * @return int|false Number of affected rows
      */
@@ -88,14 +88,14 @@ class WorkerSQLPDO extends BasePDO
     {
         try {
             $result = $this->client->query($query);
-            
+
             if (!$result['success']) {
                 throw new ValidationException(
                     $result['error']['code'] ?? 'INTERNAL_ERROR',
                     $result['error']['message'] ?? 'Query failed'
                 );
             }
-            
+
             return $result['rowsAffected'] ?? 0;
         } catch (\Exception $e) {
             if ($this->attributes[BasePDO::ATTR_ERRMODE] === BasePDO::ERRMODE_EXCEPTION) {
@@ -107,7 +107,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Execute a query and return a statement object
-     * 
+     *
      * @param string $query SQL query
      * @param int|null $fetchMode Fetch mode
      * @param mixed ...$fetchModeArgs Fetch mode arguments
@@ -120,13 +120,13 @@ class WorkerSQLPDO extends BasePDO
             if ($stmt === false) {
                 return false;
             }
-            
+
             $stmt->execute();
-            
+
             if ($fetchMode !== null) {
                 $stmt->setFetchMode($fetchMode, ...$fetchModeArgs);
             }
-            
+
             return $stmt;
         } catch (\Exception $e) {
             if ($this->attributes[BasePDO::ATTR_ERRMODE] === BasePDO::ERRMODE_EXCEPTION) {
@@ -138,7 +138,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Begin a transaction
-     * 
+     *
      * @return bool
      */
     public function beginTransaction(): bool
@@ -146,7 +146,7 @@ class WorkerSQLPDO extends BasePDO
         if ($this->inTransaction) {
             throw new \PDOException('Transaction already started');
         }
-        
+
         $this->inTransaction = true;
         $this->transactionQueries = [];
         return true;
@@ -154,7 +154,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Commit a transaction
-     * 
+     *
      * @return bool
      */
     public function commit(): bool
@@ -162,12 +162,12 @@ class WorkerSQLPDO extends BasePDO
         if (!$this->inTransaction) {
             throw new \PDOException('No transaction to commit');
         }
-        
+
         try {
             if (!empty($this->transactionQueries)) {
                 $this->client->batchQuery($this->transactionQueries, ['transaction' => true]);
             }
-            
+
             $this->inTransaction = false;
             $this->transactionQueries = [];
             return true;
@@ -179,7 +179,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Roll back a transaction
-     * 
+     *
      * @return bool
      */
     public function rollBack(): bool
@@ -187,7 +187,7 @@ class WorkerSQLPDO extends BasePDO
         if (!$this->inTransaction) {
             throw new \PDOException('No transaction to roll back');
         }
-        
+
         $this->inTransaction = false;
         $this->transactionQueries = [];
         return true;
@@ -195,7 +195,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Check if inside a transaction
-     * 
+     *
      * @return bool
      */
     public function inTransaction(): bool
@@ -205,7 +205,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Add query to transaction queue
-     * 
+     *
      * @internal
      */
     public function addTransactionQuery(string $sql, array $params): void
@@ -218,7 +218,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Get the ID of the last inserted row
-     * 
+     *
      * @param string|null $name Sequence name (ignored)
      * @return string|false
      */
@@ -233,7 +233,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Get an attribute
-     * 
+     *
      * @param int $attribute Attribute to get
      * @return mixed
      */
@@ -244,7 +244,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Set an attribute
-     * 
+     *
      * @param int $attribute Attribute to set
      * @param mixed $value Value to set
      * @return bool
@@ -257,7 +257,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Quote a string for use in a query
-     * 
+     *
      * @param string $string String to quote
      * @param int $type Parameter type
      * @return string|false
@@ -270,7 +270,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Get error code
-     * 
+     *
      * @return string|null
      */
     public function errorCode(): ?string
@@ -280,7 +280,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Get error info
-     * 
+     *
      * @return array
      */
     public function errorInfo(): array
@@ -290,7 +290,7 @@ class WorkerSQLPDO extends BasePDO
 
     /**
      * Get underlying WorkerSQL client
-     * 
+     *
      * @return Client
      */
     public function getClient(): Client

@@ -169,7 +169,7 @@ class WorkerSQLClient:
     def __init__(self, config: Optional[Dict[str, Any]] = None, dsn: Optional[str] = None):
         """
         Initialize WorkerSQL client
-        
+
         Args:
             config: Configuration dictionary
             dsn: DSN connection string (alternative to config)
@@ -284,6 +284,41 @@ class WorkerSQLClient:
     def get_pool_stats(self) -> Optional[Dict[str, int]]:
         """Get connection pool statistics"""
         return self.pool.get_stats() if self.pool else None
+
+    def get_detailed_pool_stats(self) -> Optional[Dict[str, Any]]:
+        """Get detailed connection pool statistics"""
+        return self.pool.get_detailed_stats() if self.pool else None
+
+    def metadata(self):
+        """Get metadata provider for database introspection"""
+        from .metadata import MetadataProvider
+        if not hasattr(self, '_metadata_provider'):
+            self._metadata_provider = MetadataProvider(lambda sql, params=None: self.query(sql, params))
+        return self._metadata_provider
+
+    def procedures(self):
+        """Get stored procedure caller"""
+        from .stored_procedures import StoredProcedureCaller
+        if not hasattr(self, '_procedure_caller'):
+            self._procedure_caller = StoredProcedureCaller(lambda sql, params=None: self.query(sql, params))
+        return self._procedure_caller
+
+    def multi_statement(self):
+        """Get multi-statement executor"""
+        from .stored_procedures import MultiStatementExecutor
+        if not hasattr(self, '_multi_statement_executor'):
+            self._multi_statement_executor = MultiStatementExecutor(lambda sql, params=None: self.query(sql, params))
+        return self._multi_statement_executor
+
+    def stream(self, sql: str, params: Optional[List[Any]] = None, batch_size: int = 100):
+        """Create a query stream for large result sets"""
+        from .streaming import QueryStream
+        return QueryStream(sql, params, lambda s, p: self.query(s, p), batch_size)
+
+    def iterate(self, sql: str, params: Optional[List[Any]] = None, batch_size: int = 100):
+        """Create an iterator for query results"""
+        from .streaming import QueryStream
+        return QueryStream(sql, params, lambda s, p: self.query(s, p), batch_size)
 
     def query(
         self,

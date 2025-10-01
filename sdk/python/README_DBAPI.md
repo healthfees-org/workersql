@@ -41,16 +41,16 @@ from workersql_client.dbapi import connect
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'workersql'
-    
+
     def get_connection_params(self):
         return {'dsn': self.settings_dict['DSN']}
-    
+
     def get_new_connection(self, conn_params):
         return connect(**conn_params)
-    
+
     def init_connection_state(self):
         pass
-    
+
     def create_cursor(self, name=None):
         return self.connection.cursor()
 ```
@@ -260,7 +260,7 @@ from workersql_client.dbapi import connect, IntegrityError
 class UserRepository:
     def __init__(self, dsn: str):
         self.dsn = dsn
-    
+
     def create_user(self, username: str, email: str) -> int:
         with connect(dsn=self.dsn) as conn:
             cursor = conn.cursor()
@@ -273,7 +273,7 @@ class UserRepository:
                 return cursor.lastrowid
             except IntegrityError:
                 raise ValueError("User already exists")
-    
+
     def get_user(self, user_id: int) -> Optional[dict]:
         with connect(dsn=self.dsn) as conn:
             cursor = conn.cursor()
@@ -282,7 +282,7 @@ class UserRepository:
             if row:
                 return {'id': row[0], 'username': row[1], 'email': row[2]}
             return None
-    
+
     def update_user(self, user_id: int, username: str, email: str) -> bool:
         with connect(dsn=self.dsn) as conn:
             cursor = conn.cursor()
@@ -292,7 +292,7 @@ class UserRepository:
             )
             conn.commit()
             return cursor.rowcount > 0
-    
+
     def delete_user(self, user_id: int) -> bool:
         with connect(dsn=self.dsn) as conn:
             cursor = conn.cursor()

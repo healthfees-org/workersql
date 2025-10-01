@@ -37,13 +37,13 @@ class DSNParser:
     def parse(dsn: str) -> ParsedDSN:
         """
         Parse a WorkerSQL DSN string
-        
+
         Args:
             dsn: Connection string to parse
-            
+
         Returns:
             ParsedDSN: Parsed DSN components
-            
+
         Raises:
             ValueError: If DSN format is invalid
         """
@@ -92,10 +92,10 @@ class DSNParser:
     def get_api_endpoint(parsed: ParsedDSN) -> str:
         """
         Extract API endpoint from DSN parameters or construct from host
-        
+
         Args:
             parsed: Parsed DSN components
-            
+
         Returns:
             str: API endpoint URL
         """

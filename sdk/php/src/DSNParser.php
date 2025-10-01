@@ -11,7 +11,7 @@ class DSNParser
 {
     /**
      * Parse a WorkerSQL DSN string
-     * 
+     *
      * @param string $dsn Connection string to parse
      * @return array Parsed DSN components
      * @throws ValidationException If DSN format is invalid
@@ -65,7 +65,7 @@ class DSNParser
 
     /**
      * Get API endpoint from parsed DSN
-     * 
+     *
      * @param array $parsed Parsed DSN components
      * @return string API endpoint URL
      */

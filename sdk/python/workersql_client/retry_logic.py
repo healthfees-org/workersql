@@ -31,7 +31,7 @@ class RetryStrategy:
     ):
         """
         Initialize retry strategy
-        
+
         Args:
             max_attempts: Maximum number of retry attempts
             initial_delay: Initial delay in seconds
@@ -48,10 +48,10 @@ class RetryStrategy:
     def is_retryable(self, error: Exception) -> bool:
         """
         Check if an error is retryable
-        
+
         Args:
             error: The exception to check
-            
+
         Returns:
             bool: True if the error should trigger a retry
         """
@@ -72,10 +72,10 @@ class RetryStrategy:
     def calculate_delay(self, attempt: int) -> float:
         """
         Calculate delay for a given attempt
-        
+
         Args:
             attempt: Current attempt number (0-indexed)
-            
+
         Returns:
             float: Delay in seconds
         """
@@ -85,10 +85,10 @@ class RetryStrategy:
     def add_jitter(self, delay: float) -> float:
         """
         Add jitter to prevent thundering herd
-        
+
         Args:
             delay: Base delay in seconds
-            
+
         Returns:
             float: Delay with jitter added
         """
@@ -98,14 +98,14 @@ class RetryStrategy:
     def execute(self, fn: Callable[[], T], context: Optional[str] = None) -> T:
         """
         Execute a function with retry logic
-        
+
         Args:
             fn: Function to execute
             context: Optional context string for logging
-            
+
         Returns:
             Result of the function
-            
+
         Raises:
             ValidationError: If all retry attempts fail
         """

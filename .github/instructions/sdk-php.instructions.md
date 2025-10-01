@@ -1,6 +1,3 @@
----
-applyTo: 'sdk/php/*'
----
 # PHP SDK Implementation - WorkerSQL
 
 This instruction documents the PHP SDK implementation for WorkerSQL, providing a MySQL-compatible client for edge database operations.
@@ -162,15 +159,15 @@ $client = new Client([
     'username' => 'myuser',
     'password' => 'mypass',
     'database' => 'mydb',
-    
+
     // API configuration
     'api_endpoint' => 'https://api.workersql.com/v1',  // Auto-constructed if not provided
     'api_key' => 'your-api-key',
-    
+
     // Connection options
     'ssl' => true,
     'timeout' => 30000,  // milliseconds
-    
+
     // Retry configuration
     'retry_attempts' => 3,
     'retry_delay' => 1.0,  // seconds

@@ -148,10 +148,10 @@ $pdo->beginTransaction();
 try {
     $stmt = $pdo->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ?");
     $stmt->execute([100, 1]);
-    
+
     $stmt = $pdo->prepare("UPDATE accounts SET balance = balance + ? WHERE id = ?");
     $stmt->execute([100, 2]);
-    
+
     $pdo->commit();
 } catch (Exception $e) {
     $pdo->rollBack();
@@ -164,11 +164,11 @@ try {
     $stmt = $mysqli->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ?");
     $stmt->bind_param("ii", 100, 1);
     $stmt->execute();
-    
+
     $stmt = $mysqli->prepare("UPDATE accounts SET balance = balance + ? WHERE id = ?");
     $stmt->bind_param("ii", 100, 2);
     $stmt->execute();
-    
+
     $mysqli->commit();
 } catch (Exception $e) {
     $mysqli->rollback();

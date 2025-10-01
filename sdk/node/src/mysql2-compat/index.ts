@@ -1,6 +1,6 @@
 /**
  * mysql2-compatible interface for WorkerSQL
- * 
+ *
  * Drop-in replacement for mysql2/promise that uses WorkerSQL HTTP API.
  * Compatible with TypeORM, Sequelize, Knex, and other Node.js ORMs.
  */
@@ -36,8 +36,8 @@ export class Connection {
 
   private buildDSN(options: ConnectionOptions): string {
     const protocol = 'workersql://';
-    const auth = options.user && options.password 
-      ? `${options.user}:${options.password}@` 
+    const auth = options.user && options.password
+      ? `${options.user}:${options.password}@`
       : '';
     const host = options.host || 'localhost';
     const port = options.port ? `:${options.port}` : '';

@@ -63,7 +63,7 @@ export class WorkerSQLDriver extends Driver {
       apiKey: this.options.extra?.apiKey
     });
   }
-  
+
   // Implement other Driver methods...
 }
 ```

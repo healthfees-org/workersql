@@ -104,19 +104,19 @@ interface WorkerSQLClientConfig {
   username?: string;
   password?: string;
   database?: string;
-  
+
   // API configuration
   apiEndpoint?: string;  // Auto-constructed from host/port if not provided
   apiKey?: string;
-  
+
   // Connection options
   ssl?: boolean;         // Default: true
   timeout?: number;      // Default: 30000ms
-  
+
   // Retry configuration
   retryAttempts?: number;  // Default: 3
   retryDelay?: number;     // Default: 1000ms
-  
+
   // Connection pooling
   pooling?: {
     enabled?: boolean;          // Default: true
@@ -124,7 +124,7 @@ interface WorkerSQLClientConfig {
     maxConnections?: number;    // Default: 10
     idleTimeout?: number;       // Default: 300000ms (5 min)
   };
-  
+
   // Or use DSN string
   dsn?: string;
 }
@@ -286,14 +286,14 @@ For ACID transactions, the SDK uses WebSocket connections to maintain sticky ses
 await client.transaction(async (txn) => {
   // All queries in this callback use the same WebSocket connection
   // ensuring they execute on the same shard
-  
+
   const balance = await txn.query('SELECT balance FROM accounts WHERE id = ?', [1]);
-  
+
   if (balance.data[0].balance >= 100) {
     await txn.query('UPDATE accounts SET balance = balance - 100 WHERE id = ?', [1]);
     await txn.query('UPDATE accounts SET balance = balance + 100 WHERE id = ?', [2]);
   }
-  
+
   // Automatically commits on success
   // Automatically rolls back on error
 });
@@ -319,12 +319,12 @@ await client.query(
 The SDK is written in TypeScript and includes full type definitions:
 
 ```typescript
-import { 
-  WorkerSQLClient, 
-  QueryResponse, 
+import {
+  WorkerSQLClient,
+  QueryResponse,
   BatchQueryResponse,
   HealthCheckResponse,
-  ValidationError 
+  ValidationError
 } from '@workersql/node-sdk';
 
 const client: WorkerSQLClient = new WorkerSQLClient({
@@ -383,16 +383,16 @@ console.log(`${results.results.filter(r => r.success).length} queries succeeded`
 try {
   await client.transaction(async (txn) => {
     await txn.query('UPDATE accounts SET balance = balance - 100 WHERE id = ?', [1]);
-    
+
     // Simulate an error
     const balance = await txn.query('SELECT balance FROM accounts WHERE id = ?', [1]);
     if (balance.data[0].balance < 0) {
       throw new Error('Insufficient funds');
     }
-    
+
     await txn.query('UPDATE accounts SET balance = balance + 100 WHERE id = ?', [2]);
   });
-  
+
   console.log('Transaction committed');
 } catch (error) {
   console.error('Transaction rolled back:', error);

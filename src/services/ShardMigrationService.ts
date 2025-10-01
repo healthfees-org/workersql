@@ -145,7 +145,7 @@ export class ShardMigrationService {
     }
 
     if (primaryShardId) {
-      return info.dualWriteTargets.filter((id) => id !== primaryShardId);
+      return info.dualWriteTargets.filter((id: string) => id !== primaryShardId);
     }
 
     return info.dualWriteTargets;

@@ -1,5 +1,6 @@
+/// <reference types="@cloudflare/vitest-pool-workers" />
 import { describe, it, expect } from 'vitest';
-import { env, SELF } from 'cloudflare:test';
+import { SELF } from 'cloudflare:test';
 
 // Integration test: cache materialization & metrics using Workers runtime
 

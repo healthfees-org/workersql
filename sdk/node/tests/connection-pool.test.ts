@@ -120,7 +120,7 @@ describe('ConnectionPool', () => {
 
       // Try to acquire another - should timeout
       const acquirePromise = pool.acquire();
-      
+
       // Release one connection after a delay
       setTimeout(() => {
         pool.release(conns[0].id);
@@ -190,7 +190,7 @@ describe('ConnectionPool', () => {
       const conn1 = await pool.acquire();
       const conn2 = await pool.acquire();
       const conn3 = await pool.acquire();
-      
+
       pool.release(conn1.id);
       pool.release(conn2.id);
       pool.release(conn3.id);

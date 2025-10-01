@@ -21,7 +21,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Fetch a result row as an associative array
-     * 
+     *
      * @return array|null
      */
     public function fetch_assoc(): ?array
@@ -34,7 +34,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Fetch a result row as a numeric array
-     * 
+     *
      * @return array|null
      */
     public function fetch_array(): ?array
@@ -48,7 +48,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Fetch a result row as an object
-     * 
+     *
      * @param string $class Class name
      * @param array $constructor_args Constructor arguments
      * @return object|null
@@ -59,11 +59,11 @@ class WorkerSQLMySQLiResult extends mysqli_result
             return null;
         }
         $row = $this->data[$this->position++];
-        
+
         if ($class === "stdClass") {
             return (object)$row;
         }
-        
+
         $object = new $class(...$constructor_args);
         foreach ($row as $key => $value) {
             $object->$key = $value;
@@ -73,7 +73,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Fetch all rows
-     * 
+     *
      * @return array
      */
     public function fetch_all(int $mode = MYSQLI_ASSOC): array
@@ -91,7 +91,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Get the number of rows
-     * 
+     *
      * @return int
      */
     public function num_rows(): int
@@ -110,7 +110,7 @@ class WorkerSQLMySQLiResult extends mysqli_result
 
     /**
      * Magic property getter
-     * 
+     *
      * @param string $name Property name
      * @return mixed
      */

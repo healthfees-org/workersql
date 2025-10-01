@@ -4,7 +4,7 @@ from .exceptions import InterfaceError, ProgrammingError
 
 class Cursor:
     """DB-API 2.0 compliant Cursor class"""
-    
+
     def __init__(self, connection: Any):
         self._connection = connection
         self._closed = False
@@ -14,32 +14,32 @@ class Cursor:
         self._description: Optional[List[Tuple]] = None
         self._arraysize = 1
         self._lastrowid: Optional[int] = None
-    
+
     @property
     def description(self) -> Optional[List[Tuple]]:
         return self._description
-    
+
     @property
     def rowcount(self) -> int:
         return self._rowcount
-    
+
     @property
     def arraysize(self) -> int:
         return self._arraysize
-    
+
     @arraysize.setter
     def arraysize(self, value: int) -> None:
         self._arraysize = value
-    
+
     @property
     def lastrowid(self) -> Optional[int]:
         return self._lastrowid
-    
+
     def close(self) -> None:
         self._closed = True
         self._result = None
         self._position = 0
-    
+
     def execute(self, operation: str, parameters: Optional[Union[List, Tuple]] = None) -> "Cursor":
         if self._closed:
             raise InterfaceError("Cursor is closed")
@@ -68,7 +68,7 @@ class Cursor:
             if isinstance(e, (InterfaceError, ProgrammingError)):
                 raise
             raise ProgrammingError(f"Execute failed: {e}")
-    
+
     def executemany(self, operation: str, seq_of_parameters: List[Union[List, Tuple]]) -> "Cursor":
         if self._closed:
             raise InterfaceError("Cursor is closed")
@@ -85,7 +85,7 @@ class Cursor:
             if isinstance(e, (InterfaceError, ProgrammingError)):
                 raise
             raise ProgrammingError(f"ExecuteMany failed: {e}")
-    
+
     def fetchone(self) -> Optional[Tuple]:
         if self._closed:
             raise InterfaceError("Cursor is closed")
@@ -97,7 +97,7 @@ class Cursor:
         row = data[self._position]
         self._position += 1
         return tuple(row.values())
-    
+
     def fetchmany(self, size: Optional[int] = None) -> List[Tuple]:
         if self._closed:
             raise InterfaceError("Cursor is closed")
@@ -109,7 +109,7 @@ class Cursor:
                 break
             rows.append(row)
         return rows
-    
+
     def fetchall(self) -> List[Tuple]:
         if self._closed:
             raise InterfaceError("Cursor is closed")
@@ -119,22 +119,22 @@ class Cursor:
         rows = [tuple(row.values()) for row in data[self._position:]]
         self._position = len(data)
         return rows
-    
+
     def setinputsizes(self, sizes: List[Any]) -> None:
         pass
-    
+
     def setoutputsize(self, size: int, column: Optional[int] = None) -> None:
         pass
-    
+
     def __enter__(self) -> "Cursor":
         return self
-    
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
-    
+
     def __iter__(self) -> "Cursor":
         return self
-    
+
     def __next__(self) -> Tuple:
         row = self.fetchone()
         if row is None:

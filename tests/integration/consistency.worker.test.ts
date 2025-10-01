@@ -1,5 +1,6 @@
+/// <reference types="@cloudflare/vitest-pool-workers" />
 import { describe, it, expect } from 'vitest';
-import { SELF, env } from 'cloudflare:test';
+import { SELF } from 'cloudflare:test';
 
 function authHeader(tenant: string) {
   const payload = btoa(JSON.stringify({ sub: tenant, exp: Math.floor(Date.now() / 1000) + 3600 }));

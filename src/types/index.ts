@@ -260,3 +260,54 @@ export interface EdgeSQLConfig {
     cacheEnabled: boolean;
   };
 }
+
+// Shard migration types
+export interface ShardMigrationRoutingInfo {
+  active: boolean;
+  sourceShard: string;
+  dualWriteTargets: string[];
+  status: ShardMigrationStatus;
+}
+
+export type ShardMigrationStatus =
+  | 'initializing'
+  | 'backfill'
+  | 'tail_sync'
+  | 'cutover_pending'
+  | 'cutover_complete'
+  | 'completed'
+  | 'rolled_back';
+
+export interface ShardMigrationState {
+  id: string;
+  sourceShard: string;
+  targetShards: string[];
+  tenants: string[];
+  tenantAssignments: Record<string, string>;
+  tables: string[];
+  tenantColumn: string;
+  status: ShardMigrationStatus;
+  versionBefore: number;
+  versionAfter?: number;
+  dualWrite: boolean;
+  startedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  description?: string;
+  progress: {
+    totalTables: number;
+    tablesCompleted: number;
+    backfilledRows: number;
+    cursors: Record<string, Record<string, number>>;
+  };
+}
+
+export interface ShardSplitRequest {
+  migrationId?: string;
+  sourceShard: string;
+  targetShards: string[];
+  tenants: string[];
+  tables?: string[];
+  tenantColumn?: string;
+  description?: string;
+}

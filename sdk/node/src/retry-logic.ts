@@ -49,7 +49,7 @@ export class RetryStrategy {
     }
 
     if (error?.message && typeof error.message === 'string') {
-      return this.options.retryableErrors.some(code => 
+      return this.options.retryableErrors.some(code =>
         error.message.includes(code)
       );
     }

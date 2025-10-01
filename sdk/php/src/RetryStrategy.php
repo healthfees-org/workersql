@@ -40,7 +40,7 @@ class RetryStrategy
 
         $message = strtolower($error->getMessage());
         $networkErrors = ['connection', 'timeout', 'refused', 'reset', 'unreachable'];
-        
+
         foreach ($networkErrors as $err) {
             if (strpos($message, $err) !== false) {
                 return true;
@@ -70,7 +70,7 @@ class RetryStrategy
 
     /**
      * Execute a callable with retry logic
-     * 
+     *
      * @param callable $fn Function to execute
      * @param string|null $context Optional context for logging
      * @return mixed Result of the function

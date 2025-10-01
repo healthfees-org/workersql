@@ -60,7 +60,7 @@ export class WebSocketTransactionClient {
       // Note: In Node.js, you'll need to install 'ws' package
       // For browser, WebSocket is built-in
       const WebSocketImpl = typeof WebSocket !== 'undefined' ? WebSocket : (await import('ws')).default;
-      
+
       const wsUrl = this.apiKey ? `${this.url}?token=${this.apiKey}` : this.url;
       this.ws = new WebSocketImpl(wsUrl) as any;
 

@@ -1,6 +1,3 @@
----
-applyTo: 'sdk/node/*'
----
 # Node.js SDK Implementation - WorkerSQL
 
 This instruction documents the Node.js SDK implementation for WorkerSQL, providing a MySQL-compatible client for edge database operations.
@@ -193,19 +190,19 @@ const client = new WorkerSQLClient({
   username: 'myuser',
   password: 'mypass',
   database: 'mydb',
-  
+
   // API configuration
   apiEndpoint: 'https://api.workersql.com/v1',  // Auto-constructed if not provided
   apiKey: 'your-api-key',
-  
+
   // Connection options
   ssl: true,
   timeout: 30000,
-  
+
   // Retry configuration
   retryAttempts: 3,
   retryDelay: 1000,
-  
+
   // Connection pooling
   pooling: {
     enabled: true,

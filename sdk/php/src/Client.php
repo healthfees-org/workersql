@@ -9,7 +9,7 @@ use GuzzleHttp\Exception\GuzzleException;
 
 /**
  * WorkerSQL PHP Client
- * 
+ *
  * Provides MySQL-compatible database operations at the edge.
  */
 class Client
@@ -20,7 +20,7 @@ class Client
 
     /**
      * Create a new WorkerSQL client
-     * 
+     *
      * @param string|array $config DSN string or configuration array
      */
     public function __construct($config)
@@ -39,7 +39,7 @@ class Client
             'headers' => [
                 'Content-Type' => 'application/json',
                 'User-Agent' => 'WorkerSQL-PHPSDK/1.0.0',
-                'Authorization' => isset($this->config['api_key']) 
+                'Authorization' => isset($this->config['api_key'])
                     ? 'Bearer ' . $this->config['api_key']
                     : null,
             ],
@@ -57,7 +57,7 @@ class Client
     private function configFromDSN(string $dsn): array
     {
         $parsed = DSNParser::parse($dsn);
-        
+
         return [
             'host' => $parsed['host'],
             'port' => $parsed['port'] ?? null,
@@ -67,11 +67,11 @@ class Client
             'api_endpoint' => DSNParser::getApiEndpoint($parsed),
             'api_key' => $parsed['params']['apiKey'] ?? null,
             'ssl' => ($parsed['params']['ssl'] ?? 'true') !== 'false',
-            'timeout' => isset($parsed['params']['timeout']) 
-                ? (int)$parsed['params']['timeout'] 
+            'timeout' => isset($parsed['params']['timeout'])
+                ? (int)$parsed['params']['timeout']
                 : 30000,
-            'retry_attempts' => isset($parsed['params']['retryAttempts']) 
-                ? (int)$parsed['params']['retryAttempts'] 
+            'retry_attempts' => isset($parsed['params']['retryAttempts'])
+                ? (int)$parsed['params']['retryAttempts']
                 : 3,
         ];
     }
@@ -97,7 +97,7 @@ class Client
 
     /**
      * Execute a SQL query
-     * 
+     *
      * @param string $sql SQL query with ? placeholders
      * @param array $params Query parameters
      * @param array|null $options Optional query options
@@ -120,7 +120,7 @@ class Client
                 $response = $this->httpClient->post('/query', [
                     'json' => $request,
                 ]);
-                
+
                 return json_decode($response->getBody()->getContents(), true);
             } catch (GuzzleException $e) {
                 throw new ValidationException('CONNECTION_ERROR', 'Failed to execute query: ' . $e->getMessage());
@@ -130,7 +130,7 @@ class Client
 
     /**
      * Execute multiple queries in batch
-     * 
+     *
      * @param array $queries Array of query objects
      * @param array|null $options Batch options
      * @return array Batch response
@@ -148,7 +148,7 @@ class Client
                 $response = $this->httpClient->post('/batch', [
                     'json' => $request,
                 ]);
-                
+
                 return json_decode($response->getBody()->getContents(), true);
             } catch (GuzzleException $e) {
                 throw new ValidationException('CONNECTION_ERROR', 'Failed to execute batch query: ' . $e->getMessage());
@@ -158,7 +158,7 @@ class Client
 
     /**
      * Check service health
-     * 
+     *
      * @return array Health check response
      */
     public function healthCheck(): array

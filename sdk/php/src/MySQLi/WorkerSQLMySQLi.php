@@ -10,7 +10,7 @@ use WorkerSQL\ValidationException;
 
 /**
  * MySQLi-compatible WorkerSQL Driver
- * 
+ *
  * Drop-in replacement for MySQLi that uses WorkerSQL HTTP API.
  * Compatible with WordPress (using mysqli extension).
  */
@@ -27,7 +27,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Create a new MySQLi connection
-     * 
+     *
      * @param string $dsn WorkerSQL DSN (workersql://...)
      */
     public function __construct(string $dsn)
@@ -38,7 +38,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Perform a query
-     * 
+     *
      * @param string $query SQL query
      * @return WorkerSQLMySQLiResult|bool
      */
@@ -46,18 +46,18 @@ class WorkerSQLMySQLi extends mysqli
     {
         try {
             $result = $this->client->query($query);
-            
+
             if (!$result['success']) {
                 $this->errno = 1;
                 $this->error = $result['error']['message'] ?? 'Query failed';
                 return false;
             }
-            
+
             $this->affectedRows = $result['rowsAffected'] ?? 0;
             $this->insertId = $result['lastInsertId'] ?? null;
             $this->errno = 0;
             $this->error = '';
-            
+
             $this->lastResult = new WorkerSQLMySQLiResult($result['data'] ?? []);
             return $this->lastResult;
         } catch (\Exception $e) {
@@ -69,7 +69,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Prepare a statement
-     * 
+     *
      * @param string $query SQL query with ? placeholders
      * @return WorkerSQLMySQLiStmt|false
      */
@@ -86,7 +86,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Execute a query (alias for query)
-     * 
+     *
      * @param string $query SQL query
      * @return bool
      */
@@ -98,7 +98,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Begin a transaction
-     * 
+     *
      * @return bool
      */
     public function begin_transaction(): bool
@@ -108,7 +108,7 @@ class WorkerSQLMySQLi extends mysqli
             $this->error = 'Transaction already started';
             return false;
         }
-        
+
         $this->inTransaction = true;
         $this->transactionQueries = [];
         return true;
@@ -116,7 +116,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Commit a transaction
-     * 
+     *
      * @return bool
      */
     public function commit(): bool
@@ -126,12 +126,12 @@ class WorkerSQLMySQLi extends mysqli
             $this->error = 'No transaction to commit';
             return false;
         }
-        
+
         try {
             if (!empty($this->transactionQueries)) {
                 $this->client->batchQuery($this->transactionQueries, ['transaction' => true]);
             }
-            
+
             $this->inTransaction = false;
             $this->transactionQueries = [];
             return true;
@@ -145,7 +145,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Rollback a transaction
-     * 
+     *
      * @return bool
      */
     public function rollback(): bool
@@ -155,7 +155,7 @@ class WorkerSQLMySQLi extends mysqli
             $this->error = 'No transaction to rollback';
             return false;
         }
-        
+
         $this->inTransaction = false;
         $this->transactionQueries = [];
         return true;
@@ -163,7 +163,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Add query to transaction queue
-     * 
+     *
      * @internal
      */
     public function addTransactionQuery(string $sql, array $params): void
@@ -176,7 +176,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Check if in transaction
-     * 
+     *
      * @return bool
      */
     public function inTransaction(): bool
@@ -186,7 +186,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Escape a string for use in a query
-     * 
+     *
      * @param string $string String to escape
      * @return string
      */
@@ -197,7 +197,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Get the ID of the last inserted row
-     * 
+     *
      * @return int|string
      */
     public function insert_id(): int|string
@@ -207,7 +207,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Get the number of affected rows
-     * 
+     *
      * @return int|string
      */
     public function affected_rows(): int|string
@@ -217,7 +217,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Get the last error number
-     * 
+     *
      * @return int
      */
     public function errno(): int
@@ -227,7 +227,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Get the last error message
-     * 
+     *
      * @return string
      */
     public function error(): string
@@ -237,7 +237,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Close the connection
-     * 
+     *
      * @return bool
      */
     public function close(): bool
@@ -248,7 +248,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Get underlying WorkerSQL client
-     * 
+     *
      * @return Client
      */
     public function getClient(): Client
@@ -258,7 +258,7 @@ class WorkerSQLMySQLi extends mysqli
 
     /**
      * Magic property getter for mysqli properties
-     * 
+     *
      * @param string $name Property name
      * @return mixed
      */

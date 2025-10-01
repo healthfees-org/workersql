@@ -202,7 +202,7 @@ describe('RetryStrategy', () => {
         maxAttempts: 1,
       });
 
-      const fn = jest.fn().mockImplementation(() => 
+      const fn = jest.fn().mockImplementation(() =>
         new Promise(resolve => setTimeout(() => resolve('success'), 1000))
       );
 
@@ -211,7 +211,7 @@ describe('RetryStrategy', () => {
 
     it('should include context in timeout error', async () => {
       const strategy = new RetryStrategy();
-      const fn = jest.fn().mockImplementation(() => 
+      const fn = jest.fn().mockImplementation(() =>
         new Promise(resolve => setTimeout(() => resolve('success'), 1000))
       );
 

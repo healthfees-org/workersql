@@ -2,13 +2,18 @@
 
 ## Overview
 
-WorkerSQL provides production-ready client SDKs for Node.js, Python, and PHP that offer MySQL-compatible interfaces for edge database operations. These SDKs provide drop-in replacement capabilities for existing MySQL drivers while adding edge-specific features like connection pooling, automatic retries, and WebSocket-based transactions.
+WorkerSQL provides production-ready client SDKs for Node.js, Python, and PHP
+that offer MySQL-compatible interfaces for edge database operations. These SDKs
+provide drop-in replacement capabilities for existing MySQL drivers while adding
+edge-specific features like connection pooling, automatic retries, and
+WebSocket-based transactions.
 
 ## Design Principles
 
 ### 1. MySQL Compatibility
 
 All SDKs maintain API compatibility with standard MySQL clients:
+
 - **Node.js**: Compatible with `mysql2/promise` API patterns
 - **Python**: Compatible with `mysql-connector-python` patterns
 - **PHP**: Compatible with PDO and MySQLi interfaces
@@ -38,6 +43,7 @@ workersql://[username[:password]@]host[:port][/database][?param1=value1&param2=v
 ```
 
 **Parameters:**
+
 - `apiKey`: API authentication key
 - `ssl`: Enable/disable SSL (default: true)
 - `timeout`: Request timeout in milliseconds (default: 30000)
@@ -49,6 +55,7 @@ workersql://[username[:password]@]host[:port][/database][?param1=value1&param2=v
 ### Connection Pooling
 
 Efficient connection management with:
+
 - Configurable min/max connections
 - Idle timeout for unused connections
 - Automatic health checking
@@ -58,6 +65,7 @@ Efficient connection management with:
 ### Automatic Retry Logic
 
 Intelligent retry mechanism:
+
 - Exponential backoff with jitter
 - Retryable error detection (CONNECTION_ERROR, TIMEOUT_ERROR, RESOURCE_LIMIT)
 - Configurable max attempts and delays
@@ -69,6 +77,7 @@ Intelligent retry mechanism:
 Consistent error model across all SDKs:
 
 **Error Codes:**
+
 - `INVALID_QUERY`: SQL syntax or validation error
 - `CONNECTION_ERROR`: Network or connection failure
 - `TIMEOUT_ERROR`: Operation timed out
@@ -80,6 +89,7 @@ Consistent error model across all SDKs:
 ### Prepared Statements
 
 SQL injection prevention through parameterized queries:
+
 - Positional parameters (?)
 - Type-safe parameter binding
 - Automatic escaping
@@ -90,6 +100,7 @@ SQL injection prevention through parameterized queries:
 ### Node.js SDK (@workersql/node-sdk)
 
 **Unique Features:**
+
 - Full TypeScript support with type definitions
 - WebSocket transaction client for sticky sessions
 - Axios-based HTTP client with interceptors
@@ -97,30 +108,40 @@ SQL injection prevention through parameterized queries:
 - ES modules support
 
 **Installation:**
+
 ```bash
 npm install @workersql/node-sdk
 ```
 
 **Basic Usage:**
+
 ```typescript
 import { WorkerSQLClient } from '@workersql/node-sdk';
 
-const client = new WorkerSQLClient('workersql://api.workersql.com/mydb?apiKey=key');
+const client = new WorkerSQLClient(
+  'workersql://api.workersql.com/mydb?apiKey=key'
+);
 const result = await client.query('SELECT * FROM users WHERE id = ?', [1]);
 await client.close();
 ```
 
 **Transaction Support:**
+
 ```typescript
 await client.transaction(async (txn) => {
-  await txn.query('UPDATE accounts SET balance = balance - 100 WHERE id = ?', [1]);
-  await txn.query('UPDATE accounts SET balance = balance + 100 WHERE id = ?', [2]);
+  await txn.query('UPDATE accounts SET balance = balance - 100 WHERE id = ?', [
+    1,
+  ]);
+  await txn.query('UPDATE accounts SET balance = balance + 100 WHERE id = ?', [
+    2,
+  ]);
 });
 ```
 
 ### Python SDK (workersql-python-sdk)
 
 **Unique Features:**
+
 - Type hints with Pydantic validation
 - Context manager support (`with` statement)
 - Thread-safe connection pooling
@@ -128,11 +149,13 @@ await client.transaction(async (txn) => {
 - Dataclass-based response models
 
 **Installation:**
+
 ```bash
 pip install workersql-python-sdk
 ```
 
 **Basic Usage:**
+
 ```python
 from workersql_client import WorkerSQLClient
 
@@ -142,6 +165,7 @@ with WorkerSQLClient(dsn='workersql://api.workersql.com/mydb?apiKey=key') as cli
 ```
 
 **Connection Pooling:**
+
 ```python
 client = WorkerSQLClient(config={
     "host": "api.workersql.com",
@@ -164,6 +188,7 @@ print(f"Active: {stats['active']}, Idle: {stats['idle']}")
 **Note:** PHP SDK implementation is planned but not yet complete.
 
 **Planned Features:**
+
 - PDO-compatible interface
 - MySQLi-compatible interface
 - Composer package
@@ -171,11 +196,13 @@ print(f"Active: {stats['active']}, Idle: {stats['idle']}")
 - PHP 7.4+ support
 
 **Planned Installation:**
+
 ```bash
 composer require workersql/php-sdk
 ```
 
 **Planned Usage:**
+
 ```php
 use WorkerSQL\Client;
 
@@ -189,6 +216,7 @@ $client->close();
 ### Drop-in Replacement
 
 **Node.js (replacing mysql2):**
+
 ```typescript
 // Before
 import mysql from 'mysql2/promise';
@@ -200,12 +228,13 @@ const pool = new WorkerSQLClient('workersql://user:pass@host/db?apiKey=key');
 ```
 
 **Python (replacing mysql-connector):**
+
 ```python
 # Before
 import mysql.connector
 conn = mysql.connector.connect(host='host', database='db', user='user', password='pass')
 
-# After  
+# After
 from workersql_client import WorkerSQLClient
 conn = WorkerSQLClient(dsn='workersql://user:pass@host/db?apiKey=key')
 ```
@@ -213,6 +242,7 @@ conn = WorkerSQLClient(dsn='workersql://user:pass@host/db?apiKey=key')
 ### Framework Integration
 
 **Express.js (Node.js):**
+
 ```typescript
 import express from 'express';
 import { WorkerSQLClient } from '@workersql/node-sdk';
@@ -221,12 +251,15 @@ const app = express();
 const db = new WorkerSQLClient(process.env.DATABASE_DSN!);
 
 app.get('/users/:id', async (req, res) => {
-  const result = await db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+  const result = await db.query('SELECT * FROM users WHERE id = ?', [
+    req.params.id,
+  ]);
   res.json(result.data[0]);
 });
 ```
 
 **Flask (Python):**
+
 ```python
 from flask import Flask, jsonify
 from workersql_client import WorkerSQLClient
@@ -258,23 +291,25 @@ const client = new WorkerSQLClient({
   host: 'api.workersql.com',
   database: 'mydb',
   apiKey: 'your-key',
-  retryAttempts: 5,        // More attempts
-  retryDelay: 500,         // Faster initial retry
-  timeout: 60000,          // Longer timeout
+  retryAttempts: 5, // More attempts
+  retryDelay: 500, // Faster initial retry
+  timeout: 60000, // Longer timeout
   pooling: {
-    maxConnections: 50     // More connections
-  }
+    maxConnections: 50, // More connections
+  },
 });
 ```
 
 ### Transaction Optimization
 
 Use WebSocket transactions for:
+
 - Multi-statement ACID operations
 - Operations requiring shard affinity
 - Complex business logic needing consistency
 
 Avoid WebSocket transactions for:
+
 - Single read queries
 - Independent write operations
 - High-volume read operations
@@ -317,7 +352,7 @@ const stats = client.getPoolStats();
 console.log({
   total: stats.total,
   active: stats.active,
-  idle: stats.idle
+  idle: stats.idle,
 });
 
 // Alert if pool is saturated
@@ -339,7 +374,7 @@ try {
     logger.error('Query failed', {
       code: error.code,
       message: error.message,
-      details: error.details
+      details: error.details,
     });
   }
 }
@@ -348,6 +383,7 @@ try {
 ### Performance Metrics
 
 Track key metrics:
+
 - Query execution time
 - Connection pool utilization
 - Retry attempt counts
@@ -376,11 +412,13 @@ describe('Database queries', () => {
 ### Integration Testing
 
 Use test databases:
+
 ```
 workersql://localhost:8787/test?ssl=false&apiKey=test-key
 ```
 
 Mock HTTP responses for unit tests:
+
 ```typescript
 import nock from 'nock';
 
@@ -388,7 +426,7 @@ nock('https://api.workersql.com')
   .post('/v1/query')
   .reply(200, {
     success: true,
-    data: [{ id: 1, name: 'Test User' }]
+    data: [{ id: 1, name: 'Test User' }],
   });
 ```
 
@@ -397,17 +435,16 @@ nock('https://api.workersql.com')
 ### From MySQL
 
 1. **Update connection strings:**
+
    ```
    mysql://user:pass@host/db
    →
    workersql://user:pass@host/db?apiKey=key
    ```
 
-2. **Update client initialization:**
-   Replace MySQL client with WorkerSQL client
+2. **Update client initialization:** Replace MySQL client with WorkerSQL client
 
-3. **Test query compatibility:**
-   Most MySQL queries work as-is
+3. **Test query compatibility:** Most MySQL queries work as-is
 
 4. **Handle edge cases:**
    - Check for unsupported MySQL features
@@ -417,6 +454,7 @@ nock('https://api.workersql.com')
 ### From Other Cloud Databases
 
 Similar process:
+
 1. Update connection configuration
 2. Replace client library
 3. Test query compatibility
@@ -449,8 +487,8 @@ const client = new WorkerSQLClient({
   database: 'mydb',
   apiKey: 'key',
   pooling: {
-    maxConnections: 50  // Increase from default 10
-  }
+    maxConnections: 50, // Increase from default 10
+  },
 });
 
 // Or disable pooling temporarily
@@ -458,7 +496,7 @@ const client = new WorkerSQLClient({
   host: 'api.workersql.com',
   database: 'mydb',
   apiKey: 'key',
-  pooling: { enabled: false }
+  pooling: { enabled: false },
 });
 ```
 
@@ -471,7 +509,7 @@ const client = new WorkerSQLClient({
   database: 'mydb',
   apiKey: 'key',
   retryAttempts: 5,
-  retryDelay: 2000
+  retryDelay: 2000,
 });
 ```
 

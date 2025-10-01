@@ -61,7 +61,7 @@ export class ConnectionPool {
 
   private createConnection(): PooledConnection {
     const id = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    
+
     const instance = axios.create({
       baseURL: this.options.apiEndpoint,
       timeout: this.options.connectionTimeout,
@@ -188,6 +188,65 @@ export class ConnectionPool {
   }
 
   /**
+   * Get enhanced pool statistics with detailed metrics
+   */
+  getDetailedStats(): {
+    total: number;
+    active: number;
+    idle: number;
+    minConnections: number;
+    maxConnections: number;
+    totalRequests: number;
+    averageUseCount: number;
+    oldestConnection: Date | null;
+    newestConnection: Date | null;
+    connections: Array<{
+      id: string;
+      inUse: boolean;
+      createdAt: Date;
+      lastUsed: Date;
+      useCount: number;
+      ageMs: number;
+      idleMs: number;
+    }>;
+  } {
+    const connections = Array.from(this.connections.values());
+    const active = connections.filter(c => c.inUse).length;
+    const totalRequests = connections.reduce((sum, c) => sum + c.useCount, 0);
+    const averageUseCount = connections.length > 0 ? totalRequests / connections.length : 0;
+
+    const now = Date.now();
+    const oldestConnection = connections.length > 0
+      ? connections.reduce((oldest, conn) => conn.createdAt < oldest ? conn.createdAt : oldest, connections[0].createdAt)
+      : null;
+
+    const newestConnection = connections.length > 0
+      ? connections.reduce((newest, conn) => conn.createdAt > newest ? conn.createdAt : newest, connections[0].createdAt)
+      : null;
+
+    return {
+      total: this.connections.size,
+      active,
+      idle: this.connections.size - active,
+      minConnections: this.options.minConnections,
+      maxConnections: this.options.maxConnections,
+      totalRequests,
+      averageUseCount,
+      oldestConnection,
+      newestConnection,
+      connections: connections.map(c => ({
+        id: c.id,
+        inUse: c.inUse,
+        createdAt: c.createdAt,
+        lastUsed: c.lastUsed,
+        useCount: c.useCount,
+        ageMs: now - c.createdAt.getTime(),
+        idleMs: now - c.lastUsed.getTime()
+      }))
+    };
+  }
+
+  /**
    * Close the pool and all connections
    */
   async close(): Promise<void> {
@@ -200,7 +259,7 @@ export class ConnectionPool {
     // Wait for active connections to be released
     const maxWait = 5000; // 5 seconds
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWait) {
       const activeCount = Array.from(this.connections.values()).filter(c => c.inUse).length;
       if (activeCount === 0) {

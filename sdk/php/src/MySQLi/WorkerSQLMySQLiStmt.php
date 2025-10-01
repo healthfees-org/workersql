@@ -29,7 +29,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Bind parameters to the prepared statement
-     * 
+     *
      * @param string $types Parameter types (s=string, i=integer, d=double, b=blob)
      * @param mixed ...$vars Variables to bind
      * @return bool
@@ -45,7 +45,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Execute the prepared statement
-     * 
+     *
      * @return bool
      */
     public function execute(): bool
@@ -57,15 +57,15 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
                 $this->result = ['success' => true, 'data' => []];
                 return true;
             }
-            
+
             $this->result = $this->client->query($this->query, $this->params);
-            
+
             if (!$this->result['success']) {
                 $this->errno = 1;
                 $this->error = $this->result['error']['message'] ?? 'Execution failed';
                 return false;
             }
-            
+
             $this->errno = 0;
             $this->error = '';
             return true;
@@ -78,7 +78,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Get the result set
-     * 
+     *
      * @return WorkerSQLMySQLiResult|false
      */
     public function get_result(): WorkerSQLMySQLiResult|false
@@ -91,7 +91,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Get the number of affected rows
-     * 
+     *
      * @return int
      */
     public function affected_rows(): int
@@ -101,7 +101,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Get the last insert ID
-     * 
+     *
      * @return int
      */
     public function insert_id(): int
@@ -111,7 +111,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Get error number
-     * 
+     *
      * @return int
      */
     public function errno(): int
@@ -121,7 +121,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Get error message
-     * 
+     *
      * @return string
      */
     public function error(): string
@@ -131,7 +131,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Close the statement
-     * 
+     *
      * @return bool
      */
     public function close(): bool
@@ -143,7 +143,7 @@ class WorkerSQLMySQLiStmt extends mysqli_stmt
 
     /**
      * Magic property getter
-     * 
+     *
      * @param string $name Property name
      * @return mixed
      */

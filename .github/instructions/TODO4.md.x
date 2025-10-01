@@ -6,11 +6,11 @@ Implement advanced features including shard splitting, monitoring, observability
 ## Deliverables
 
 ### 1. Shard Management & Splitting
-- [ ] Online shard splitting implementation
-- [ ] Dual-write during migration
-- [ ] Backfill and tail processing
-- [ ] Routing map updates and versioning
-- [ ] Rollback capabilities
+- [x] Online shard splitting implementation
+- [x]] Dual-write during migration
+- [x] Backfill and tail processing
+- [x] Routing map updates and versioning
+- [x] Rollback capabilities
 
 ### 2. Monitoring & Observability
 - [ ] Per-shard metrics collection
