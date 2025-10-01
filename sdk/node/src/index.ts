@@ -18,6 +18,9 @@ import { SchemaValidator, ValidationError } from '../../schema/validator.js';
 import { DSNParser, ParsedDSN } from './dsn-parser.js';
 import { ConnectionPool, PooledConnection } from './connection-pool.js';
 import { RetryStrategy } from './retry-logic.js';
+import { MetadataProvider } from './metadata.js';
+import { QueryStream, QueryIterator, createQueryStream, createQueryIterator } from './streaming.js';
+import { StoredProcedureCaller, MultiStatementExecutor, ProcedureParameter, ProcedureResult } from './stored-procedures.js';
 
 export interface WorkerSQLClientConfig extends SDKConfig {
   apiEndpoint?: string;
@@ -40,6 +43,9 @@ export class WorkerSQLClient {
   private pool?: ConnectionPool;
   private retryStrategy: RetryStrategy;
   private parsedDSN?: ParsedDSN;
+  private metadataProvider?: MetadataProvider;
+  private storedProcedureCaller?: StoredProcedureCaller;
+  private multiStatementExecutor?: MultiStatementExecutor;
 
   constructor(config: Partial<WorkerSQLClientConfig> | string) {
     // If DSN string is provided, parse it
@@ -228,6 +234,73 @@ export class WorkerSQLClient {
   }
 
   /**
+   * Get detailed connection pool statistics
+   */
+  getDetailedPoolStats() {
+    return this.pool?.getDetailedStats();
+  }
+
+  /**
+   * Get metadata provider for database introspection
+   */
+  metadata(): MetadataProvider {
+    if (!this.metadataProvider) {
+      this.metadataProvider = new MetadataProvider(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.metadataProvider;
+  }
+
+  /**
+   * Get stored procedure caller
+   */
+  procedures(): StoredProcedureCaller {
+    if (!this.storedProcedureCaller) {
+      this.storedProcedureCaller = new StoredProcedureCaller(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.storedProcedureCaller;
+  }
+
+  /**
+   * Get multi-statement executor
+   */
+  multiStatement(): MultiStatementExecutor {
+    if (!this.multiStatementExecutor) {
+      this.multiStatementExecutor = new MultiStatementExecutor(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.multiStatementExecutor;
+  }
+
+  /**
+   * Create a query stream for large result sets
+   */
+  stream(sql: string, params?: any[], options?: { batchSize?: number; highWaterMark?: number }): QueryStream {
+    return createQueryStream(
+      sql,
+      params || [],
+      (sql: string, params?: any[]) => this.query(sql, params),
+      options
+    );
+  }
+
+  /**
+   * Create an async iterator for query results
+   */
+  iterate(sql: string, params?: any[], batchSize?: number): QueryIterator {
+    return createQueryIterator(
+      sql,
+      params || [],
+      (sql: string, params?: any[]) => this.query(sql, params),
+      batchSize
+    );
+  }
+
+  /**
    * Execute a transaction
    */
   async transaction(callback: (client: TransactionClient) => Promise<void>): Promise<void> {
@@ -346,3 +419,9 @@ export type { ParsedDSN } from './dsn-parser.js';
 export { ConnectionPool } from './connection-pool.js';
 export type { PooledConnection } from './connection-pool.js';
 export { RetryStrategy } from './retry-logic.js';
+export { MetadataProvider } from './metadata.js';
+export type { ColumnMetadata, IndexMetadata, ForeignKeyMetadata, TableMetadata, DatabaseMetadata } from './metadata.js';
+export { QueryStream, QueryIterator, createQueryStream, createQueryIterator } from './streaming.js';
+export type { StreamOptions, StreamRow } from './streaming.js';
+export { StoredProcedureCaller, MultiStatementExecutor } from './stored-procedures.js';
+export type { ProcedureParameter, ProcedureResult } from './stored-procedures.js';
