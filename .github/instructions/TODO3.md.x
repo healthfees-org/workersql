@@ -5,21 +5,21 @@ Develop production-ready client SDKs for Python, Node.js, and PHP that provide a
 
 ## Deliverables
 
-### 1. Node.js SDK (`@edge-mysql/promise`)
+### 1. Node.js SDK (`@workersql/promise`)
 - [ ] MySQL2-compatible API implementation
 - [ ] Connection pooling with edge-aware routing
 - [ ] Transaction support with WebSocket sticky sessions
 - [ ] Prepared statement support
 - [ ] TypeScript definitions and documentation
 
-### 2. Python SDK (`edge-mysql-python`)
+### 2. Python SDK (`workersql-python`)
 - [ ] mysql-connector-python compatible API
 - [ ] Connection pooling implementation
 - [ ] Transaction context managers
 - [ ] Prepared statement support
 - [ ] Type hints and comprehensive documentation
 
-### 3. PHP SDK (`edge-mysql-php`)
+### 3. PHP SDK (`workersql-php`)
 - [ ] PDO-compatible interface
 - [ ] MySQLi-compatible interface
 - [ ] Connection management
@@ -27,7 +27,7 @@ Develop production-ready client SDKs for Python, Node.js, and PHP that provide a
 - [ ] Composer package configuration
 
 ### 4. Common SDK Features
-- [ ] DSN parsing for `edge-mysql://` protocol
+- [ ] DSN parsing for `workersql://` protocol
 - [ ] Automatic retry logic with exponential backoff
 - [ ] Connection health checking
 - [ ] Comprehensive error handling
