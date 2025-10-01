@@ -114,6 +114,12 @@ export class TableShard implements DurableObject {
           return this.handleDDL(request);
         case '/transaction':
           return this.handleTransaction(request);
+        case '/admin/export':
+          return this.handleAdminExport(request);
+        case '/admin/import':
+          return this.handleAdminImport(request);
+        case '/admin/events':
+          return this.handleAdminEvents(request);
         case '/pitr/bookmark':
           return this.handlePITRBookmark(request);
         case '/pitr/restore':
@@ -230,6 +236,7 @@ export class TableShard implements DurableObject {
       result = { rows: [], rowsAffected: 0, metadata: { shardId: this.getShardId() } };
     } else {
       result = await this.executeSQL('MUTATION', query.sql, query.params ?? [], tenantId);
+      await this.recordChangeEvent('mutation', tenantId, query.sql, query.params ?? []);
     }
 
     return new Response(JSON.stringify(result), {
@@ -265,6 +272,7 @@ export class TableShard implements DurableObject {
 
     let rowsAffected = 0;
     const touchedTables = new Set<string>();
+    const mutationEvents: Array<{ sql: string; params: unknown[] }> = [];
     // Execute as a single transaction if possible
     const maybeStorage = this.storage as unknown as { transactionSync?: (fn: () => void) => void };
     const execAll = () => {
@@ -280,6 +288,7 @@ export class TableShard implements DurableObject {
         } catch {
           // ignore
         }
+        mutationEvents.push({ sql: op.sql, params: op.params ?? [] });
       }
     };
 
@@ -317,6 +326,9 @@ export class TableShard implements DurableObject {
     for (const table of touchedTables) {
       await this.emitInvalidationEvent(tenantId, table);
     }
+    for (const evt of mutationEvents) {
+      await this.recordChangeEvent('mutation', tenantId, evt.sql, evt.params);
+    }
     await this.refreshCapacityIfDue();
 
     // Minimal metrics log
@@ -353,6 +365,7 @@ export class TableShard implements DurableObject {
     this.validateTenantAccess(tenantId, query.sql);
 
     const result = await this.executeSQL('DDL', query.sql, query.params ?? [], tenantId);
+    await this.recordChangeEvent('ddl', tenantId, query.sql, query.params ?? []);
     await this.emitInvalidationEvent(tenantId, '*');
 
     return new Response(JSON.stringify(result), {
@@ -450,6 +463,167 @@ export class TableShard implements DurableObject {
     return new Response(JSON.stringify({ success: true, scheduled: true, bookmark }), {
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  private async handleAdminExport(request: Request): Promise<Response> {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = (await request.json().catch(() => ({}))) as {
+      table?: string;
+      tenantId?: string;
+      tenantColumn?: string;
+      cursor?: number;
+      limit?: number;
+    };
+
+    if (!body.table || !body.tenantId || !body.tenantColumn) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'table, tenantId, tenantColumn required' }),
+        {
+          status: 400,
+          headers,
+        }
+      );
+    }
+
+    const tableName = this.sanitizeIdentifier(body.table);
+    const tenantColumn = this.sanitizeIdentifier(body.tenantColumn);
+    const limit = Math.min(Math.max(typeof body.limit === 'number' ? body.limit : 200, 1), 500);
+    const cursorValue = typeof body.cursor === 'number' && body.cursor > 0 ? body.cursor : 0;
+
+    try {
+      const query = `SELECT rowid AS __rowid, * FROM ${tableName} WHERE ${tenantColumn} = ? AND rowid > ? ORDER BY rowid LIMIT ?`;
+      const cursor = this.storage.sql.exec(query, body.tenantId, cursorValue, limit);
+      const rows = cursor.toArray() as Array<Record<string, unknown>>;
+
+      const formatted = rows.map((row) => {
+        const data = { ...row } as Record<string, unknown>;
+        const rowid = Number(data['__rowid'] ?? data['rowid'] ?? 0);
+        delete data['__rowid'];
+        delete data['rowid'];
+        return { rowid, data };
+      });
+
+      const nextCursor =
+        formatted.length === limit ? (formatted[formatted.length - 1]?.rowid ?? null) : null;
+
+      return new Response(JSON.stringify({ success: true, rows: formatted, nextCursor }), {
+        headers,
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+        status: 500,
+        headers,
+      });
+    }
+  }
+
+  private async handleAdminImport(request: Request): Promise<Response> {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = (await request.json().catch(() => ({}))) as {
+      table?: string;
+      rows?: Array<{ rowid?: number; data: Record<string, unknown> }>;
+      mode?: 'upsert' | 'insert';
+    };
+
+    if (!body.table || !Array.isArray(body.rows)) {
+      return new Response(JSON.stringify({ success: false, error: 'table and rows required' }), {
+        status: 400,
+        headers,
+      });
+    }
+
+    const tableName = this.sanitizeIdentifier(body.table);
+    const mode = body.mode === 'insert' ? 'insert' : 'upsert';
+
+    try {
+      this.storage.sql.exec('BEGIN');
+      for (const entry of body.rows) {
+        const data = entry?.data ?? {};
+        const keys = Object.keys(data);
+        if (keys.length === 0) {
+          continue;
+        }
+        const columns = keys.map((k) => this.sanitizeIdentifier(k));
+        const placeholders = columns.map(() => '?').join(',');
+        const values = keys.map((key) => data[key]);
+        const statementPrefix = mode === 'upsert' ? 'INSERT OR REPLACE' : 'INSERT';
+        const stmt = `${statementPrefix} INTO ${tableName} (${columns.join(',')}) VALUES (${placeholders})`;
+        this.storage.sql.exec(stmt, ...(values as unknown[]));
+      }
+      this.storage.sql.exec('COMMIT');
+      return new Response(JSON.stringify({ success: true, rowsImported: body.rows.length }), {
+        headers,
+      });
+    } catch (error) {
+      try {
+        this.storage.sql.exec('ROLLBACK');
+      } catch {
+        // ignore rollback failure
+      }
+      return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+        status: 500,
+        headers,
+      });
+    }
+  }
+
+  private async handleAdminEvents(request: Request): Promise<Response> {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = (await request.json().catch(() => ({}))) as {
+      since?: number;
+      limit?: number;
+      tenantId?: string;
+      afterId?: number;
+    };
+
+    const since =
+      typeof body.since === 'number' && body.since > 0 ? body.since : Date.now() - 5 * 60 * 1000;
+    const limit = Math.min(Math.max(body.limit ?? 500, 1), 2000);
+    const afterId = typeof body.afterId === 'number' && body.afterId > 0 ? body.afterId : 0;
+
+    try {
+      let sql = 'SELECT id, ts, type, payload FROM _events WHERE ts >= ?';
+      const params: unknown[] = [since];
+      if (afterId > 0) {
+        sql += ' AND id > ?';
+        params.push(afterId);
+      }
+      if (body.tenantId) {
+        sql += ' AND json_extract(payload, "$.tenantId") = ?';
+        params.push(body.tenantId);
+      }
+      sql += ' ORDER BY id LIMIT ?';
+      params.push(limit);
+
+      const cursor = this.storage.sql.exec(sql, ...(params as unknown[]));
+      const rows = cursor.toArray() as Array<{
+        id: number;
+        ts: number;
+        type: string;
+        payload?: string;
+      }>;
+      const events = rows.map((row) => ({
+        id: row.id,
+        ts: row.ts,
+        type: row.type,
+        payload: row.payload
+          ? (() => {
+              try {
+                return JSON.parse(row.payload) as Record<string, unknown>;
+              } catch {
+                return {} as Record<string, unknown>;
+              }
+            })()
+          : ({} as Record<string, unknown>),
+      }));
+
+      return new Response(JSON.stringify({ success: true, events }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+        status: 500,
+        headers,
+      });
+    }
   }
 
   /**
@@ -628,6 +802,10 @@ export class TableShard implements DurableObject {
       throw this.normalizeSQLError(e as Error);
     }
 
+    for (const op of transaction.operations) {
+      await this.recordChangeEvent('mutation', transaction.tenantId, op.sql, op.params);
+    }
+
     this.transactions.delete(transactionId);
 
     return {
@@ -776,6 +954,33 @@ export class TableShard implements DurableObject {
 
   // Removed: legacy periodic sync scaffolding; durable SQLite is authoritative
 
+  private async recordChangeEvent(
+    type: 'mutation' | 'ddl',
+    tenantId: string,
+    sql: string,
+    params: unknown[]
+  ): Promise<void> {
+    try {
+      const payload = JSON.stringify({
+        tenantId,
+        table: this.extractTableName(sql),
+        sql,
+        params,
+      });
+      this.storage.sql.exec(
+        'INSERT INTO _events (ts, type, payload) VALUES (?, ?, ?)',
+        Date.now(),
+        type,
+        payload
+      );
+    } catch (error) {
+      this.logger.warn('change event record failed', {
+        error: (error as Error).message,
+        type,
+      });
+    }
+  }
+
   // Utilities
   private normalizeSQLError(err: Error): EdgeSQLError {
     const msg = err.message || String(err);
@@ -816,5 +1021,12 @@ export class TableShard implements DurableObject {
         this.stmtCache.delete(first);
       }
     }
+  }
+
+  private sanitizeIdentifier(value: string): string {
+    if (!value || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+      throw new EdgeSQLError(`Invalid identifier: ${value}`, 'INVALID_IDENTIFIER');
+    }
+    return value;
   }
 }

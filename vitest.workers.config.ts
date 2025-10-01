@@ -11,7 +11,9 @@ export default defineWorkersProject({
     setupFiles: ['tests/vitest.setup.ts'],
     poolOptions: {
       workers: {
-        wrangler: { configPath: './wrangler.toml', environment: 'development' },
+        miniflare: {
+          compatibilityDate: '2023-01-01',
+        },
       },
     },
     sequence: { concurrent: false },

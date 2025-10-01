@@ -1,3 +1,6 @@
+---
+applyTo: 'src/services/**'
+---
 # Configuration System Implementation
 
 ## Overview

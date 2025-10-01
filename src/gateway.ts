@@ -4,7 +4,14 @@ import { RouterService } from './services/RouterService';
 import { CircuitBreakerService } from './services/CircuitBreakerService';
 import { ConnectionManager } from './services/ConnectionManager';
 import { SQLCompatibilityService } from './services/SQLCompatibilityService';
-import { WorkerResponse, SQLQuery, CloudflareEnvironment, QueryRequest } from './types';
+import { ShardSplitService } from './services/ShardSplitService';
+import {
+  WorkerResponse,
+  SQLQuery,
+  CloudflareEnvironment,
+  QueryRequest,
+  EdgeSQLError,
+} from './types';
 import { queueConsumer } from './services/QueueEventSystem';
 import { Logger } from './services/Logger';
 
@@ -19,6 +26,7 @@ export default {
     ctx: ExecutionContext
   ): Promise<Response> {
     const gateway = new EdgeSQLGateway(env, ctx);
+    const url = new URL(request.url);
     try {
       // Health check endpoint
       if (request.url.endsWith('/health')) {
@@ -33,6 +41,10 @@ export default {
       // Admin GraphQL analytics proxy
       if (request.url.endsWith('/admin/graphql')) {
         return gateway.handleAdminGraphQL(request);
+      }
+
+      if (url.pathname.startsWith('/admin/shards')) {
+        return gateway.handleShardAdmin(request, url);
       }
 
       // Batch SQL endpoint
@@ -69,6 +81,7 @@ export class EdgeSQLGateway {
   private _ctx: ExecutionContext;
   private _stubCache: Map<string, DurableObjectStub> = new Map();
   private logger: Logger;
+  private shardSplitService: ShardSplitService;
 
   constructor(env: CloudflareEnvironment, ctx: ExecutionContext) {
     this._env = env;
@@ -79,6 +92,8 @@ export class EdgeSQLGateway {
     this.breaker = new CircuitBreakerService();
     this.connections = new ConnectionManager();
     this.sqlCompatibility = new SQLCompatibilityService(this._env);
+    this.shardSplitService = new ShardSplitService(this._env, this.configService);
+    this._ctx.waitUntil(this.shardSplitService.initialize());
     const evars = env as unknown as Record<string, unknown>;
     const envStr = typeof evars['ENVIRONMENT'] === 'string' ? (evars['ENVIRONMENT'] as string) : '';
     this.logger = new Logger({ service: 'Gateway' }, { environment: envStr });
@@ -394,7 +409,10 @@ export class EdgeSQLGateway {
     }
 
     // Group operations by target shard
-    const groups = new Map<string, { targetId: DurableObjectId; ops: BatchItem[] }>();
+    const groups = new Map<
+      string,
+      { shardId: string; targetId: DurableObjectId; ops: BatchItem[] }
+    >();
     for (const it of items) {
       const { sql } = it;
       const { sql: transpiled, hints } = this.sqlCompatibility.transpileSQL(sql);
@@ -412,13 +430,18 @@ export class EdgeSQLGateway {
         ...(hints && { hints }),
       };
       const target = await this.routerService.routeQuery(queryReq, tenantId);
-      const key = target.durableObjectId.toString();
-      const arr = groups.get(key);
-      const updated = { sql: transpiled, params: it.params || [] };
-      if (arr) {
-        arr.ops.push(updated);
-      } else {
-        groups.set(key, { targetId: target.durableObjectId, ops: [updated] });
+      const shardIds = this.shardSplitService.resolveWriteShards(tenantId, target.shardId);
+      for (const shardId of shardIds) {
+        const targetId =
+          shardId === target.shardId ? target.durableObjectId : this._env.SHARD.idFromName(shardId);
+        const key = targetId.toString();
+        const arr = groups.get(key);
+        const updated = { sql: transpiled, params: it.params || [] };
+        if (arr) {
+          arr.ops.push(updated);
+        } else {
+          groups.set(key, { shardId, targetId, ops: [updated] });
+        }
       }
     }
 
@@ -428,7 +451,7 @@ export class EdgeSQLGateway {
 
     for (const [, group] of groups) {
       const stub = this.getShardStub(group.targetId);
-      const res = await this.breaker.execute(group.targetId.toString(), () =>
+      const res = await this.breaker.execute(group.shardId, () =>
         stub.fetch(
           new Request('http://do/mutation/batch', {
             method: 'POST',
@@ -701,10 +724,14 @@ export class EdgeSQLGateway {
       ...(query.hints && { hints: query.hints }),
     };
     const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
-    const shardId = targetInfo.shardId;
-    const shard = this._env.SHARD.get(targetInfo.durableObjectId);
+    const resolvedShardId = this.shardSplitService.resolveReadShard(tenantId, targetInfo.shardId);
+    const durableObjectId =
+      resolvedShardId === targetInfo.shardId
+        ? targetInfo.durableObjectId
+        : this._env.SHARD.idFromName(resolvedShardId);
+    const shard = this.getShardStub(durableObjectId);
 
-    const result = await this.breaker.execute(shardId, () =>
+    const result = await this.breaker.execute(resolvedShardId, () =>
       shard.fetch(
         new Request('http://do/query', {
           method: 'POST',
@@ -748,38 +775,56 @@ export class EdgeSQLGateway {
       ...(query.hints && { hints: query.hints }),
     };
     const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
-    const shardId = targetInfo.shardId;
-    const shard = this._env.SHARD.get(targetInfo.durableObjectId);
+    const writeShardIds = this.shardSplitService.resolveWriteShards(tenantId, targetInfo.shardId);
+    let primaryResult: WorkerResponse | null = null;
 
-    const result = await this.breaker.execute(shardId, () =>
-      shard.fetch(
-        new Request('http://do/mutation', {
-          method: 'POST',
-          body: JSON.stringify({ query, tenantId }),
-        })
-      )
-    );
+    for (const shardId of writeShardIds) {
+      const stub =
+        shardId === targetInfo.shardId
+          ? this.getShardStub(targetInfo.durableObjectId)
+          : this.getShardStubByName(shardId);
 
-    const data = await result.json<WorkerResponse>();
+      const response = (await this.breaker.execute(shardId, () =>
+        stub.fetch(
+          new Request('http://do/mutation', {
+            method: 'POST',
+            body: JSON.stringify({ query, tenantId }),
+          })
+        )
+      )) as Response;
+
+      if (shardId === writeShardIds[0]) {
+        primaryResult = await response.json<WorkerResponse>();
+      } else {
+        // exhaust response body to avoid leaked streams
+        await response.arrayBuffer().catch(() => undefined);
+      }
+    }
+
+    if (!primaryResult) {
+      throw new EdgeSQLError('Primary shard mutation failed', 'MUTATION_FAILED');
+    }
     const executionTime = Date.now() - startTime;
 
     // Invalidate related cache entries and send queue event
     this._ctx.waitUntil(
       Promise.all([
         this.invalidateCache(tenantId, query.tableName),
-        this._env.DB_EVENTS.send({
-          type: 'invalidate',
-          shardId: this.getPrimaryShardForTenant(tenantId),
-          version: Date.now(),
-          timestamp: Date.now(),
-          keys: [`${tenantId}:${query.tableName}`],
-        }),
+        ...Array.from(new Set(writeShardIds)).map((shardId) =>
+          this._env.DB_EVENTS.send({
+            type: 'invalidate',
+            shardId,
+            version: Date.now(),
+            timestamp: Date.now(),
+            keys: [`${tenantId}:${query.tableName}`],
+          })
+        ),
       ])
     );
 
     return {
       success: true,
-      data: data.data,
+      data: primaryResult.data,
       cached: false,
       executionTime,
     };
@@ -797,26 +842,40 @@ export class EdgeSQLGateway {
       ...(query.hints && { hints: query.hints }),
     };
     const targetInfo = await this.routerService.routeQuery(queryRequest, tenantId);
-    const shardId = targetInfo.shardId;
-    const shard = this._env.SHARD.get(targetInfo.durableObjectId);
+    const writeShardIds = this.shardSplitService.resolveWriteShards(tenantId, targetInfo.shardId);
+    let primaryResult: WorkerResponse | null = null;
 
-    const result = await this.breaker.execute(shardId, () =>
-      shard.fetch(
-        new Request('http://do/ddl', {
-          method: 'POST',
-          body: JSON.stringify({
-            query: {
-              sql: query.sql,
-              params: query.params,
-              ...(query.hints && { hints: query.hints }),
-            },
-            tenantId,
-          }),
-        })
-      )
-    );
+    for (const shardId of writeShardIds) {
+      const stub =
+        shardId === targetInfo.shardId
+          ? this.getShardStub(targetInfo.durableObjectId)
+          : this.getShardStubByName(shardId);
+      const response = (await this.breaker.execute(shardId, () =>
+        stub.fetch(
+          new Request('http://do/ddl', {
+            method: 'POST',
+            body: JSON.stringify({
+              query: {
+                sql: query.sql,
+                params: query.params,
+                ...(query.hints && { hints: query.hints }),
+              },
+              tenantId,
+            }),
+          })
+        )
+      )) as Response;
 
-    const data = await result.json<WorkerResponse>();
+      if (shardId === writeShardIds[0]) {
+        primaryResult = await response.json<WorkerResponse>();
+      } else {
+        await response.arrayBuffer().catch(() => undefined);
+      }
+    }
+
+    if (!primaryResult) {
+      throw new EdgeSQLError('Primary shard DDL failed', 'DDL_FAILED');
+    }
     const executionTime = Date.now() - startTime;
 
     // Invalidate all cache for tenant on DDL changes
@@ -824,7 +883,7 @@ export class EdgeSQLGateway {
 
     return {
       success: true,
-      data: data.data,
+      data: primaryResult.data,
       cached: false,
       executionTime,
     };
@@ -862,6 +921,10 @@ export class EdgeSQLGateway {
     const stub = this._env.SHARD.get(id);
     this._stubCache.set(key, stub);
     return stub;
+  }
+
+  private getShardStubByName(shardId: string): DurableObjectStub {
+    return this.getShardStub(this._env.SHARD.idFromName(shardId));
   }
 
   /**
@@ -1056,6 +1119,129 @@ export class EdgeSQLGateway {
 
     return new Response(JSON.stringify(metrics), {
       headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  public async handleShardAdmin(request: Request, url: URL): Promise<Response> {
+    if (!this.shardSplitService) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Shard split service unavailable' }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+        }
+      );
+    }
+
+    const headers = { 'Content-Type': 'application/json', ...this.getCORSHeaders() };
+    const auth = this.validateAuth(request);
+    if (
+      !auth.valid ||
+      !auth.permissions?.some((p: unknown) => String(p).toLowerCase().includes('admin'))
+    ) {
+      return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
+        status: 403,
+        headers,
+      });
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length >= 3 && segments[2] === 'metrics') {
+      const metrics = this.shardSplitService.getMetrics();
+      return new Response(JSON.stringify({ success: true, data: metrics }), { headers });
+    }
+
+    if (segments.length === 3 && segments[2] === 'split') {
+      if (request.method === 'GET') {
+        return new Response(
+          JSON.stringify({ success: true, data: this.shardSplitService.listPlans() }),
+          {
+            headers,
+          }
+        );
+      }
+      if (request.method === 'POST') {
+        const body = (await request.json().catch(() => ({}))) as {
+          sourceShard?: string;
+          targetShard?: string;
+          tenantIds?: string[];
+        };
+        if (!body.sourceShard || !body.targetShard || !Array.isArray(body.tenantIds)) {
+          return new Response(JSON.stringify({ success: false, error: 'Invalid payload' }), {
+            status: 400,
+            headers,
+          });
+        }
+        const plan = await this.shardSplitService.planSplit({
+          sourceShard: body.sourceShard,
+          targetShard: body.targetShard,
+          tenantIds: body.tenantIds,
+        });
+        return new Response(JSON.stringify({ success: true, data: plan }), {
+          status: 201,
+          headers,
+        });
+      }
+      return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
+        status: 405,
+        headers,
+      });
+    }
+
+    if (segments.length >= 4 && segments[2] === 'split') {
+      const splitId = segments[3]!;
+      const action = segments[4] ?? '';
+
+      if (request.method === 'GET' && !action) {
+        const plan = await this.shardSplitService.getPlan(splitId);
+        if (!plan) {
+          return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
+            status: 404,
+            headers,
+          });
+        }
+        return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+      }
+
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
+          status: 405,
+          headers,
+        });
+      }
+
+      switch (action) {
+        case 'dual-write': {
+          const plan = await this.shardSplitService.startDualWrite({ splitId });
+          return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+        }
+        case 'backfill': {
+          const plan = await this.shardSplitService.runBackfill({ splitId, ctx: this._ctx });
+          return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+        }
+        case 'tail': {
+          const plan = await this.shardSplitService.replayTail({ splitId });
+          return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+        }
+        case 'cutover': {
+          const plan = await this.shardSplitService.cutover({ splitId });
+          return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+        }
+        case 'rollback': {
+          const plan = await this.shardSplitService.rollback({ splitId });
+          return new Response(JSON.stringify({ success: true, data: plan }), { headers });
+        }
+        default:
+          return new Response(JSON.stringify({ success: false, error: 'Unknown action' }), {
+            status: 404,
+            headers,
+          });
+      }
+    }
+
+    return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
+      status: 404,
+      headers,
     });
   }
 

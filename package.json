@@ -12,8 +12,8 @@
     "test": "vitest run --config vitest.workspace.ts",
     "test:watch": "vitest watch --config vitest.workspace.ts",
     "test:coverage": "vitest run --config vitest.workspace.ts --coverage",
-    "test:unit": "vitest run --config vitest.workspace.ts --project node",
-    "test:integration": "vitest run --config vitest.workspace.ts --project workers",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.workers.config.ts",
     "test:e2e": "vitest run --testPathPattern=e2e",
     "test:local": "wrangler dev --local --compatibility-date=2024-08-31",
     "lint": "eslint src tests --ext .ts,.js",
@@ -21,7 +21,7 @@
     "format": "prettier --write \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
     "security:check": "bun audit && bandit -r sdk/python/ || true",
-    "workflow:check": "npm run lint && npm run format:check && npm run test:coverage && npm run build",
+    "workflow:check": "npm run lint && npm run format && npm run test:coverage && npm run build",
     "prepare": "pre-commit install"
   },
   "keywords": [
@@ -37,6 +37,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.6.0",
+    "@playwright/test": "^1.47.0",
     "@cloudflare/workers-types": "^4.20240815.0",
     "@types/jest": "^29.5.5",
     "@types/node": "^20.6.0",

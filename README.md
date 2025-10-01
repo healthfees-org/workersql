@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![WorkerSQL Logo](https://github.com/healthfees-org/workersql/blob/main/docs/workersql.png?raw=true)
+![WorkerSQL Logo](https://github.com/healthfees-org/workersql/blob/main/docs/workersql-fix.png?raw=true)
 
 **MySQL-compatible edge database platform built on Cloudflare Workers**
 

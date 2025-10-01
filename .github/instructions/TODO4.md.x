@@ -14,15 +14,15 @@ Implement advanced features including shard splitting, monitoring, observability
 
 ### 2. Monitoring & Observability
 - [ ] Per-shard metrics collection
-- [ ] Performance monitoring dashboard
 - [ ] SLO/SLA tracking and alerting
 - [ ] Cache hit/miss rate monitoring
 - [ ] Queue lag and backlog monitoring
 
 ### 3. Security Enhancements
 - [ ] Advanced authentication mechanisms
-- [ ] Audit logging implementation
-- [ ] Data encryption at rest
+- [ ] Audit logging implementation using Cloudflare Analytics engine
+    - [ ] Persist logs to R2 based on time-based eviction policy
+- [ ] Data encryption at rest (optional; not required but a feature that can be enabled)
 - [ ] Network security controls
 - [ ] Compliance reporting features
 
@@ -35,11 +35,24 @@ Implement advanced features including shard splitting, monitoring, observability
 
 ### 5. Operational Tools
 - [ ] Administrative CLI tools
-- [ ] Simple to use, but feature complete, drop-in web UI (like Adminer but in Svelte)
 - [ ] Database migration utilities
 - [ ] Backup and restore procedures
 - [ ] Disaster recovery planning
 - [ ] Capacity planning tools
+
+### 6. Client GUI
+- [ ] Svelte SPA that mimics phpMyAdmin, but modern
+- [ ] Tailwind CSS + ShadUI
+- [ ] Create in root `/client`folder
+- [ ] Authentication using Cloudflare account
+- [ ] Performance monitoring
+- [ ] mySQL workbench features (query, write, backup)
+- [ ] Unified logging (from Cloudflare logs)
+- [ ] Security monitoring
+- [ ] Migration utilities
+- [ ] Backup and restore
+    - [ ] Backup to R2 with cronjob support
+    - [ ] Local backup/export
 
 ## Acceptance Criteria
 - [ ] Shard splitting works without downtime

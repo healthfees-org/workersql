@@ -62,6 +62,58 @@ export interface RoutingPolicy {
   }>;
 }
 
+export type ShardSplitPhase =
+  | 'planning'
+  | 'dual_write'
+  | 'backfill'
+  | 'tailing'
+  | 'cutover_pending'
+  | 'completed'
+  | 'rolled_back';
+
+export interface ShardSplitPlan {
+  id: string;
+  sourceShard: string;
+  targetShard: string;
+  tenantIds: string[];
+  tablePolicies: Record<string, TablePolicy>;
+  createdAt: number;
+  updatedAt: number;
+  phase: ShardSplitPhase;
+  dualWriteStartedAt?: number;
+  backfill?: {
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    tableCursor: Record<string, string | null>;
+    totalRowsCopied: number;
+    startedAt?: number;
+    completedAt?: number;
+  };
+  tail?: {
+    status: 'pending' | 'replaying' | 'caught_up' | 'failed';
+    lastEventId?: number;
+    lastEventTs?: number;
+    startedAt?: number;
+    completedAt?: number;
+  };
+  routingVersionAtStart: number;
+  routingVersionCutover?: number;
+  rollbackVersion?: number;
+  errorMessage?: string;
+}
+
+export interface ShardSplitMetrics {
+  splitId: string;
+  sourceShard: string;
+  targetShard: string;
+  phase: ShardSplitPhase;
+  totalRowsCopied: number;
+  tenants: string[];
+  startedAt: number;
+  updatedAt: number;
+  backfillStatus?: 'pending' | 'running' | 'completed' | 'failed';
+  tailStatus?: 'pending' | 'replaying' | 'caught_up' | 'failed';
+}
+
 export interface TablePolicy {
   pk: string;
   shardBy?: string;

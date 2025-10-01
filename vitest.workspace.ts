@@ -1,8 +1,12 @@
 import { defineWorkspace, defineProject } from 'vitest/config';
 import { defineWorkersProject } from '@cloudflare/vitest-pool-workers/config';
-import { resolve } from 'path';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-export default defineWorkspace([
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const workspace = defineWorkspace([
   // Node-based unit tests
   defineProject({
     test: {
@@ -54,3 +58,5 @@ export default defineWorkspace([
     },
   }),
 ]);
+
+export default workspace;
