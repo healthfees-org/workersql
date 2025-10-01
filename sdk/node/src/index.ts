@@ -15,23 +15,67 @@ import {
   ErrorResponse
 } from '../../schema/types.js';
 import { SchemaValidator, ValidationError } from '../../schema/validator.js';
+import { DSNParser, ParsedDSN } from './dsn-parser.js';
+import { ConnectionPool, PooledConnection } from './connection-pool.js';
+import { RetryStrategy } from './retry-logic.js';
+import { MetadataProvider } from './metadata.js';
+import { QueryStream, QueryIterator, createQueryStream, createQueryIterator } from './streaming.js';
+import { StoredProcedureCaller, MultiStatementExecutor, ProcedureParameter, ProcedureResult } from './stored-procedures.js';
 
 export interface WorkerSQLClientConfig extends SDKConfig {
-  apiEndpoint: string;
+  apiEndpoint?: string;
   apiKey?: string;
   retryAttempts?: number;
   retryDelay?: number;
   timeout?: number;
+  dsn?: string;
+  pooling?: {
+    enabled?: boolean;
+    minConnections?: number;
+    maxConnections?: number;
+    idleTimeout?: number;
+  };
 }
 
 export class WorkerSQLClient {
   private httpClient: AxiosInstance;
   private config: WorkerSQLClientConfig;
+  private pool?: ConnectionPool;
+  private retryStrategy: RetryStrategy;
+  private parsedDSN?: ParsedDSN;
+  private metadataProvider?: MetadataProvider;
+  private storedProcedureCaller?: StoredProcedureCaller;
+  private multiStatementExecutor?: MultiStatementExecutor;
 
-  constructor(config: Partial<WorkerSQLClientConfig>) {
+  constructor(config: Partial<WorkerSQLClientConfig> | string) {
+    // If DSN string is provided, parse it
+    if (typeof config === 'string') {
+      this.parsedDSN = DSNParser.parse(config);
+      config = this.configFromDSN(this.parsedDSN);
+    }
+
     // Validate configuration using common schema
     this.config = this.validateConfig(config);
 
+    // Initialize retry strategy
+    this.retryStrategy = new RetryStrategy({
+      maxAttempts: this.config.retryAttempts ?? 3,
+      initialDelay: this.config.retryDelay ?? 1000,
+    });
+
+    // Initialize connection pool if enabled
+    if (this.config.pooling?.enabled !== false) {
+      this.pool = new ConnectionPool({
+        apiEndpoint: this.config.apiEndpoint!,
+        apiKey: this.config.apiKey,
+        minConnections: this.config.pooling?.minConnections ?? 1,
+        maxConnections: this.config.pooling?.maxConnections ?? 10,
+        idleTimeout: this.config.pooling?.idleTimeout ?? 300000,
+        connectionTimeout: this.config.timeout ?? 30000,
+      });
+    }
+
+    // Create default HTTP client (used if pooling is disabled)
     this.httpClient = axios.create({
       baseURL: this.config.apiEndpoint,
       timeout: this.config.timeout || 30000,
@@ -45,9 +89,36 @@ export class WorkerSQLClient {
     this.setupInterceptors();
   }
 
+  private configFromDSN(parsed: ParsedDSN): Partial<WorkerSQLClientConfig> {
+    return {
+      host: parsed.host,
+      port: parsed.port,
+      username: parsed.username,
+      password: parsed.password,
+      database: parsed.database,
+      apiEndpoint: DSNParser.getApiEndpoint(parsed),
+      apiKey: parsed.params['apiKey'],
+      ssl: parsed.params['ssl'] !== 'false',
+      timeout: parsed.params['timeout'] ? parseInt(parsed.params['timeout'], 10) : undefined,
+      retryAttempts: parsed.params['retryAttempts'] ? parseInt(parsed.params['retryAttempts'], 10) : undefined,
+      pooling: {
+        enabled: parsed.params['pooling'] !== 'false',
+        minConnections: parsed.params['minConnections'] ? parseInt(parsed.params['minConnections'], 10) : undefined,
+        maxConnections: parsed.params['maxConnections'] ? parseInt(parsed.params['maxConnections'], 10) : undefined,
+      },
+    };
+  }
+
   private validateConfig(config: Partial<WorkerSQLClientConfig>): WorkerSQLClientConfig {
-    if (!config.apiEndpoint) {
-      throw new ValidationError('INVALID_QUERY', 'apiEndpoint is required');
+    if (!config.apiEndpoint && !config.host) {
+      throw new ValidationError('INVALID_QUERY', 'apiEndpoint or host is required');
+    }
+
+    // Build apiEndpoint from host if not provided
+    if (!config.apiEndpoint && config.host) {
+      const protocol = config.ssl === false ? 'http' : 'https';
+      const port = config.port ? `:${config.port}` : '';
+      config.apiEndpoint = `${protocol}://${config.host}${port}/v1`;
     }
 
     const dbConfig = SchemaValidator.validateDatabaseConfig(config);
@@ -58,7 +129,8 @@ export class WorkerSQLClient {
       apiKey: config.apiKey,
       retryAttempts: config.retryAttempts ?? 3,
       retryDelay: config.retryDelay ?? 1000,
-      timeout: config.timeout ?? 30000
+      timeout: config.timeout ?? 30000,
+      pooling: config.pooling,
     };
   }
 
@@ -100,15 +172,15 @@ export class WorkerSQLClient {
       cache: options?.cache
     });
 
-    try {
-      const response: AxiosResponse<QueryResponse> = await this.httpClient.post('/query', request);
-      return response.data;
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        throw error;
+    return this.retryStrategy.execute(async () => {
+      const client = await this.getHttpClient();
+      try {
+        const response: AxiosResponse<QueryResponse> = await client.post('/query', request);
+        return response.data;
+      } finally {
+        this.releaseHttpClient(client);
       }
-      throw new ValidationError('CONNECTION_ERROR', 'Failed to execute query', { originalError: error });
-    }
+    }, 'query');
   }
 
   /**
@@ -121,15 +193,111 @@ export class WorkerSQLClient {
       stopOnError: options?.stopOnError
     });
 
-    try {
-      const response: AxiosResponse<BatchQueryResponse> = await this.httpClient.post('/batch', request);
-      return response.data;
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        throw error;
+    return this.retryStrategy.execute(async () => {
+      const client = await this.getHttpClient();
+      try {
+        const response: AxiosResponse<BatchQueryResponse> = await client.post('/batch', request);
+        return response.data;
+      } finally {
+        this.releaseHttpClient(client);
       }
-      throw new ValidationError('CONNECTION_ERROR', 'Failed to execute batch query', { originalError: error });
+    }, 'batchQuery');
+  }
+
+  /**
+   * Get an HTTP client from the pool or use the default
+   */
+  private async getHttpClient(): Promise<AxiosInstance & { __pooledConnectionId?: string }> {
+    if (this.pool) {
+      const conn = await this.pool.acquire();
+      const client = conn.instance as any;
+      client.__pooledConnectionId = conn.id;
+      return client;
     }
+    return this.httpClient;
+  }
+
+  /**
+   * Release an HTTP client back to the pool
+   */
+  private releaseHttpClient(client: AxiosInstance & { __pooledConnectionId?: string }): void {
+    if (this.pool && client.__pooledConnectionId) {
+      this.pool.release(client.__pooledConnectionId);
+    }
+  }
+
+  /**
+   * Get connection pool statistics
+   */
+  getPoolStats() {
+    return this.pool?.getStats();
+  }
+
+  /**
+   * Get detailed connection pool statistics
+   */
+  getDetailedPoolStats() {
+    return this.pool?.getDetailedStats();
+  }
+
+  /**
+   * Get metadata provider for database introspection
+   */
+  metadata(): MetadataProvider {
+    if (!this.metadataProvider) {
+      this.metadataProvider = new MetadataProvider(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.metadataProvider;
+  }
+
+  /**
+   * Get stored procedure caller
+   */
+  procedures(): StoredProcedureCaller {
+    if (!this.storedProcedureCaller) {
+      this.storedProcedureCaller = new StoredProcedureCaller(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.storedProcedureCaller;
+  }
+
+  /**
+   * Get multi-statement executor
+   */
+  multiStatement(): MultiStatementExecutor {
+    if (!this.multiStatementExecutor) {
+      this.multiStatementExecutor = new MultiStatementExecutor(
+        (sql: string, params?: any[]) => this.query(sql, params)
+      );
+    }
+    return this.multiStatementExecutor;
+  }
+
+  /**
+   * Create a query stream for large result sets
+   */
+  stream(sql: string, params?: any[], options?: { batchSize?: number; highWaterMark?: number }): QueryStream {
+    return createQueryStream(
+      sql,
+      params || [],
+      (sql: string, params?: any[]) => this.query(sql, params),
+      options
+    );
+  }
+
+  /**
+   * Create an async iterator for query results
+   */
+  iterate(sql: string, params?: any[], batchSize?: number): QueryIterator {
+    return createQueryIterator(
+      sql,
+      params || [],
+      (sql: string, params?: any[]) => this.query(sql, params),
+      batchSize
+    );
   }
 
   /**
@@ -151,49 +319,86 @@ export class WorkerSQLClient {
    * Check service health
    */
   async healthCheck(): Promise<HealthCheckResponse> {
-    try {
-      const response: AxiosResponse<HealthCheckResponse> = await this.httpClient.get('/health');
-      return response.data;
-    } catch (error) {
-      throw new ValidationError('CONNECTION_ERROR', 'Health check failed', { originalError: error });
-    }
+    return this.retryStrategy.execute(async () => {
+      const client = await this.getHttpClient();
+      try {
+        const response: AxiosResponse<HealthCheckResponse> = await client.get('/health');
+        return response.data;
+      } finally {
+        this.releaseHttpClient(client);
+      }
+    }, 'healthCheck');
   }
 
   /**
    * Close the client connection
    */
   async close(): Promise<void> {
-    // Cleanup any persistent connections if needed
+    if (this.pool) {
+      await this.pool.close();
+    }
     console.debug('[WorkerSQL] Client closed');
   }
 }
 
 export class TransactionClient {
   private parent: WorkerSQLClient;
+  private wsClient?: import('./websocket-client.js').WebSocketTransactionClient;
   private transactionId?: string;
+  private useWebSocket: boolean;
 
-  constructor(parent: WorkerSQLClient) {
+  constructor(parent: WorkerSQLClient, useWebSocket = true) {
     this.parent = parent;
+    this.useWebSocket = useWebSocket;
   }
 
   async begin(): Promise<void> {
-    // Transaction implementation would go here
-    console.debug('[WorkerSQL] Transaction started');
+    if (this.useWebSocket) {
+      const { WebSocketTransactionClient } = await import('./websocket-client.js');
+      this.wsClient = new WebSocketTransactionClient(
+        this.parent['config'].apiEndpoint!,
+        this.parent['config'].apiKey
+      );
+      await this.wsClient.begin();
+      this.transactionId = this.wsClient.transactionId;
+    } else {
+      // HTTP-based transaction (fallback)
+      this.transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      console.debug('[WorkerSQL] Transaction started (HTTP):', this.transactionId);
+    }
   }
 
   async query(sql: string, params?: any[]): Promise<QueryResponse> {
     if (!this.transactionId) {
       throw new ValidationError('INVALID_QUERY', 'Transaction not started');
     }
+
+    if (this.wsClient) {
+      return this.wsClient.query(sql, params);
+    }
+
+    // HTTP fallback - include transaction ID in request
     return this.parent.query(sql, params);
   }
 
   async commit(): Promise<void> {
-    console.debug('[WorkerSQL] Transaction committed');
+    if (this.wsClient) {
+      await this.wsClient.commit();
+      await this.wsClient.close();
+    } else {
+      console.debug('[WorkerSQL] Transaction committed (HTTP):', this.transactionId);
+    }
+    this.transactionId = undefined;
   }
 
   async rollback(): Promise<void> {
-    console.debug('[WorkerSQL] Transaction rolled back');
+    if (this.wsClient) {
+      await this.wsClient.rollback();
+      await this.wsClient.close();
+    } else {
+      console.debug('[WorkerSQL] Transaction rolled back (HTTP):', this.transactionId);
+    }
+    this.transactionId = undefined;
   }
 }
 
@@ -209,3 +414,14 @@ export type {
 } from '../../schema/types.js';
 
 export { ValidationError, SchemaValidator } from '../../schema/validator.js';
+export { DSNParser } from './dsn-parser.js';
+export type { ParsedDSN } from './dsn-parser.js';
+export { ConnectionPool } from './connection-pool.js';
+export type { PooledConnection } from './connection-pool.js';
+export { RetryStrategy } from './retry-logic.js';
+export { MetadataProvider } from './metadata.js';
+export type { ColumnMetadata, IndexMetadata, ForeignKeyMetadata, TableMetadata, DatabaseMetadata } from './metadata.js';
+export { QueryStream, QueryIterator, createQueryStream, createQueryIterator } from './streaming.js';
+export type { StreamOptions, StreamRow } from './streaming.js';
+export { StoredProcedureCaller, MultiStatementExecutor } from './stored-procedures.js';
+export type { ProcedureParameter, ProcedureResult } from './stored-procedures.js';

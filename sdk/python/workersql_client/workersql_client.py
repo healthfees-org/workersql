@@ -166,8 +166,46 @@ class SchemaValidator:
 
 
 class WorkerSQLClient:
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, dsn: Optional[str] = None):
+        """
+        Initialize WorkerSQL client
+        
+        Args:
+            config: Configuration dictionary
+            dsn: DSN connection string (alternative to config)
+        """
+        from .dsn_parser import DSNParser
+        from .retry_logic import RetryStrategy
+        from .connection_pool import ConnectionPool
+
+        # Parse DSN if provided
+        if dsn:
+            parsed_dsn = DSNParser.parse(dsn)
+            config = self._config_from_dsn(parsed_dsn)
+        elif config is None:
+            raise ValidationError("INVALID_QUERY", "Either config or dsn must be provided")
+
         self.config = self._validate_config(config)
+        self.retry_strategy = RetryStrategy(
+            max_attempts=self.config.get("retry_attempts", 3),
+            initial_delay=self.config.get("retry_delay", 1.0),
+        )
+
+        # Initialize connection pool if enabled
+        pooling_config = self.config.get("pooling", {})
+        if pooling_config.get("enabled", True):
+            self.pool: Optional["ConnectionPool"] = ConnectionPool(
+                api_endpoint=self.config["api_endpoint"],
+                api_key=self.config.get("api_key"),
+                min_connections=pooling_config.get("min_connections", 1),
+                max_connections=pooling_config.get("max_connections", 10),
+                idle_timeout=pooling_config.get("idle_timeout", 300.0),
+                connection_timeout=self.config.get("timeout", 30.0) / 1000.0,
+            )
+        else:
+            self.pool = None
+
+        # Create default session (used if pooling is disabled)
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -178,10 +216,38 @@ class WorkerSQLClient:
         if self.config.get("api_key"):
             self.session.headers["Authorization"] = f"Bearer {self.config['api_key']}"
 
+    def _config_from_dsn(self, parsed: Any) -> Dict[str, Any]:
+        """Build config from parsed DSN"""
+        from .dsn_parser import DSNParser
+
+        return {
+            "host": parsed.host,
+            "port": parsed.port,
+            "username": parsed.username,
+            "password": parsed.password,
+            "database": parsed.database,
+            "api_endpoint": DSNParser.get_api_endpoint(parsed),
+            "api_key": parsed.params.get("apiKey"),
+            "ssl": parsed.params.get("ssl", "true") != "false",
+            "timeout": int(parsed.params.get("timeout", 30000)),
+            "retry_attempts": int(parsed.params.get("retryAttempts", 3)),
+            "pooling": {
+                "enabled": parsed.params.get("pooling", "true") != "false",
+                "min_connections": int(parsed.params.get("minConnections", 1)),
+                "max_connections": int(parsed.params.get("maxConnections", 10)),
+            },
+        }
+
     def _validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate client configuration"""
-        if "api_endpoint" not in config:
-            raise ValidationError("INVALID_QUERY", "api_endpoint is required")
+        if "api_endpoint" not in config and "host" not in config:
+            raise ValidationError("INVALID_QUERY", "api_endpoint or host is required")
+
+        # Build api_endpoint from host if not provided
+        if "api_endpoint" not in config and "host" in config:
+            protocol = "http" if config.get("ssl") is False else "https"
+            port = f":{config['port']}" if config.get("port") else ""
+            config["api_endpoint"] = f"{protocol}://{config['host']}{port}/v1"
 
         # Validate database config portion
         db_config = {
@@ -198,7 +264,61 @@ class WorkerSQLClient:
             "api_key": config.get("api_key"),
             "retry_attempts": config.get("retry_attempts", 3),
             "retry_delay": config.get("retry_delay", 1.0),
+            "pooling": config.get("pooling", {}),
         }
+
+    def _get_session(self) -> requests.Session:
+        """Get a session from the pool or use default"""
+        if self.pool:
+            conn = self.pool.acquire()
+            # Store connection ID for release
+            conn.session._pool_conn_id = conn.id  # type: ignore
+            return conn.session
+        return self.session
+
+    def _release_session(self, session: requests.Session) -> None:
+        """Release a session back to the pool"""
+        if self.pool and hasattr(session, "_pool_conn_id"):
+            self.pool.release(session._pool_conn_id)  # type: ignore
+
+    def get_pool_stats(self) -> Optional[Dict[str, int]]:
+        """Get connection pool statistics"""
+        return self.pool.get_stats() if self.pool else None
+
+    def get_detailed_pool_stats(self) -> Optional[Dict[str, Any]]:
+        """Get detailed connection pool statistics"""
+        return self.pool.get_detailed_stats() if self.pool else None
+
+    def metadata(self):
+        """Get metadata provider for database introspection"""
+        from .metadata import MetadataProvider
+        if not hasattr(self, '_metadata_provider'):
+            self._metadata_provider = MetadataProvider(lambda sql, params=None: self.query(sql, params))
+        return self._metadata_provider
+
+    def procedures(self):
+        """Get stored procedure caller"""
+        from .stored_procedures import StoredProcedureCaller
+        if not hasattr(self, '_procedure_caller'):
+            self._procedure_caller = StoredProcedureCaller(lambda sql, params=None: self.query(sql, params))
+        return self._procedure_caller
+
+    def multi_statement(self):
+        """Get multi-statement executor"""
+        from .stored_procedures import MultiStatementExecutor
+        if not hasattr(self, '_multi_statement_executor'):
+            self._multi_statement_executor = MultiStatementExecutor(lambda sql, params=None: self.query(sql, params))
+        return self._multi_statement_executor
+
+    def stream(self, sql: str, params: Optional[List[Any]] = None, batch_size: int = 100):
+        """Create a query stream for large result sets"""
+        from .streaming import QueryStream
+        return QueryStream(sql, params, lambda s, p: self.query(s, p), batch_size)
+
+    def iterate(self, sql: str, params: Optional[List[Any]] = None, batch_size: int = 100):
+        """Create an iterator for query results"""
+        from .streaming import QueryStream
+        return QueryStream(sql, params, lambda s, p: self.query(s, p), batch_size)
 
     def query(
         self,
@@ -212,17 +332,22 @@ class WorkerSQLClient:
         if cache:
             request_data["cache"] = cache
         validated_request = SchemaValidator.validate_query_request(request_data)
-        try:
-            response = self.session.post(
-                f"{self.config['api_endpoint']}/query",
-                json=asdict(validated_request),
-                timeout=timeout or 30,
-            )
-            response.raise_for_status()
-            result = response.json()
-            return QueryResponse(**result)
-        except RequestsException as e:  # type: ignore
-            raise ValidationError("CONNECTION_ERROR", f"Failed to execute query: {str(e)}")
+
+        def _execute() -> QueryResponse:
+            session = self._get_session()
+            try:
+                response = session.post(
+                    f"{self.config['api_endpoint']}/query",
+                    json=asdict(validated_request),
+                    timeout=timeout or 30,
+                )
+                response.raise_for_status()
+                result = response.json()
+                return QueryResponse(**result)
+            finally:
+                self._release_session(session)
+
+        return self.retry_strategy.execute(_execute, "query")
 
     def batch_query(
         self,
@@ -237,30 +362,41 @@ class WorkerSQLClient:
             "transaction": transaction,
             "stop_on_error": stop_on_error,
         }
-        try:
-            response = self.session.post(
-                f"{self.config['api_endpoint']}/batch",
-                json=request_data,
-                timeout=self.config.get("timeout", 30),
-            )
-            response.raise_for_status()
-            result = response.json()
-            return BatchQueryResponse(**result)
-        except RequestsException as e:  # type: ignore
-            raise ValidationError("CONNECTION_ERROR", f"Failed to execute batch query: {str(e)}")
+
+        def _execute() -> BatchQueryResponse:
+            session = self._get_session()
+            try:
+                response = session.post(
+                    f"{self.config['api_endpoint']}/batch",
+                    json=request_data,
+                    timeout=self.config.get("timeout", 30),
+                )
+                response.raise_for_status()
+                result = response.json()
+                return BatchQueryResponse(**result)
+            finally:
+                self._release_session(session)
+
+        return self.retry_strategy.execute(_execute, "batchQuery")
 
     def health_check(self) -> HealthCheckResponse:
         """Check service health"""
-        try:
-            response = self.session.get(f"{self.config['api_endpoint']}/health", timeout=10)
-            response.raise_for_status()
-            result = response.json()
-            return HealthCheckResponse(**result)
-        except RequestsException as e:  # type: ignore
-            raise ValidationError("CONNECTION_ERROR", f"Health check failed: {str(e)}")
+        def _execute() -> HealthCheckResponse:
+            session = self._get_session()
+            try:
+                response = session.get(f"{self.config['api_endpoint']}/health", timeout=10)
+                response.raise_for_status()
+                result = response.json()
+                return HealthCheckResponse(**result)
+            finally:
+                self._release_session(session)
+
+        return self.retry_strategy.execute(_execute, "healthCheck")
 
     def close(self):
         """Close the client connection"""
+        if self.pool:
+            self.pool.close()
         self.session.close()
 
     def __enter__(self):
