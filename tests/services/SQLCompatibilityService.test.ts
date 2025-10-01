@@ -101,6 +101,14 @@ describe('SQLCompatibilityService', () => {
       expect(result.sql).toContain('UPPER(name) || " - " || STRFTIME(\'%Y\', created_at)');
       expect(result.sql).toContain('LENGTH(email) > 5');
     });
+
+    it('should reuse plan cache on repeated transpileSQL calls', () => {
+      const sql = 'SELECT * FROM products WHERE id = 42';
+      const r1 = sqlCompatibility.transpileSQL(sql);
+      const r2 = sqlCompatibility.transpileSQL(sql);
+      expect(r1.sql).toBe(r2.sql);
+      expect(r2.hints).toEqual(r1.hints);
+    });
   });
 
   describe('parseQueryHints', () => {

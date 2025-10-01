@@ -7,6 +7,9 @@ import type { CloudflareEnvironment, QueryHints, SQLQuery } from '../types';
  * Handles query hints, DDL statements, parameter binding, and transaction demarcation
  */
 export class SQLCompatibilityService extends BaseService {
+  // Lightweight plan cache for transpiled SQL and hints
+  private planCache: Map<string, { sql: string; hints: QueryHints }> = new Map();
+  private readonly planCacheLimit = 500;
   // MySQL to SQLite function mappings
   private readonly functionMappings: Record<string, string> = {
     // String functions
@@ -111,6 +114,14 @@ export class SQLCompatibilityService extends BaseService {
    * Transpile MySQL SQL to SQLite-compatible SQL
    */
   transpileSQL(sql: string): { sql: string; hints: QueryHints } {
+    const key = sql;
+    const cached = this.planCache.get(key);
+    if (cached) {
+      // refresh LRU order
+      this.planCache.delete(key);
+      this.planCache.set(key, cached);
+      return { sql: cached.sql, hints: { ...cached.hints } };
+    }
     let transpiledSQL = sql;
     const hints: QueryHints = {};
 
@@ -150,7 +161,19 @@ export class SQLCompatibilityService extends BaseService {
       hints,
     });
 
-    return { sql: transpiledSQL, hints };
+    const out = { sql: transpiledSQL, hints };
+    // Insert into LRU cache
+    if (this.planCache.has(key)) {
+      this.planCache.delete(key);
+    }
+    this.planCache.set(key, { sql: transpiledSQL, hints: { ...hints } });
+    if (this.planCache.size > this.planCacheLimit) {
+      const first = this.planCache.keys().next().value as string | undefined;
+      if (first) {
+        this.planCache.delete(first);
+      }
+    }
+    return out;
   }
 
   /**

@@ -7,6 +7,7 @@ import {
 } from '../types';
 import { TablePolicyParser } from './TablePolicyParser';
 import { RoutingVersionManager } from './RoutingVersionManager';
+import { Logger } from './Logger';
 
 /**
  * RouterService - Handles intelligent routing of SQL queries to appropriate shards
@@ -130,6 +131,7 @@ export class RouterService implements IRouterService {
   private lastHealthCheck: number = 0;
   private policyParser: TablePolicyParser;
   private versionManager: RoutingVersionManager;
+  private logger: Logger;
 
   constructor(
     private env: CloudflareEnvironment,
@@ -137,6 +139,9 @@ export class RouterService implements IRouterService {
   ) {
     this.policyParser = new TablePolicyParser();
     this.versionManager = new RoutingVersionManager(env);
+    const evars = env as unknown as Record<string, unknown>;
+    const envStr = typeof evars['ENVIRONMENT'] === 'string' ? (evars['ENVIRONMENT'] as string) : '';
+    this.logger = new Logger({ service: 'RouterService' }, { environment: envStr });
     this.initializeDefaultPolicies();
   }
 
@@ -186,7 +191,9 @@ export class RouterService implements IRouterService {
         return policy;
       }
     } catch (error) {
-      console.warn('Version manager not available, falling back to KV storage:', error);
+      this.logger.warn('Version manager not available, falling back to KV storage', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // Fallback to KV storage
@@ -268,7 +275,10 @@ export class RouterService implements IRouterService {
         this.tablePolicies.set(tableName, policy);
         return policy;
       } catch (error) {
-        console.warn(`Failed to parse YAML policy for ${tableName}, falling back to JSON:`, error);
+        this.logger.warn(`Failed to parse YAML policy for ${tableName}, falling back to JSON`, {
+          tableName,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -491,7 +501,7 @@ export class RouterService implements IRouterService {
     for (const shardId of shards) {
       try {
         const shard = this.env.SHARD.get(this.env.SHARD.idFromName(shardId));
-        const response = await shard.fetch(new Request('https://internal/health'));
+        const response = await shard.fetch(new Request('http://do/health'));
         const healthData = (await response.json()) as ShardHealthResponse;
 
         const health: ShardHealth = {
@@ -510,7 +520,10 @@ export class RouterService implements IRouterService {
 
         this.shardHealth.set(shardId, health);
       } catch (error) {
-        console.error(`Health check failed for shard ${shardId}:`, error);
+        this.logger.error(`Health check failed for shard ${shardId}`, {
+          shardId,
+          error: error instanceof Error ? error.message : String(error),
+        });
 
         const health: ShardHealth = {
           shardId,

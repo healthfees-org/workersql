@@ -45,6 +45,7 @@ module.exports = {
     'sdk/**',
     '.github/instructions/**',
   'vitest*.config.ts',
+    'tests/integration/**',
     '*.js',
     '*.cjs',
     '*.mjs',

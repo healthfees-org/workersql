@@ -1,6 +1,6 @@
 # Instructions and documentation (keep in repo but exclude from some tools)
-.github/instructions
-.github/copilot-instructions.md
+# .github/instructions
+# .github/copilot-instructions.md
 
 # Dependencies
 node_modules

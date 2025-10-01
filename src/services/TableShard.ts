@@ -7,6 +7,7 @@ import {
   DatabaseEvent,
   CloudflareEnvironment,
 } from '../types';
+import { Logger } from './Logger';
 
 /**
  * TableShard - Durable Object implementing MySQL-compatible storage shard
@@ -23,6 +24,7 @@ export class TableShard implements DurableObject {
   private env: CloudflareEnvironment;
   private state: DurableObjectState;
   private initializePromise?: Promise<void>;
+  private logger: Logger;
 
   // Active connections and transactions
   private connections: Map<string, ConnectionState> = new Map();
@@ -51,6 +53,12 @@ export class TableShard implements DurableObject {
     this.state = state;
     this.storage = state.storage;
     this.env = env;
+    const evars = env as unknown as Record<string, unknown>;
+    const envStr = typeof evars['ENVIRONMENT'] === 'string' ? (evars['ENVIRONMENT'] as string) : '';
+    this.logger = new Logger(
+      { service: 'TableShard', shardId: this.getShardId() },
+      { environment: envStr }
+    );
   }
 
   // Request body shape accepted by endpoints (flat or nested query)
@@ -100,6 +108,8 @@ export class TableShard implements DurableObject {
           return this.handleQuery(request);
         case '/mutation':
           return this.handleMutation(request);
+        case '/mutation/batch':
+          return this.handleMutationBatch(request);
         case '/ddl':
           return this.handleDDL(request);
         case '/transaction':
@@ -220,11 +230,108 @@ export class TableShard implements DurableObject {
       result = { rows: [], rowsAffected: 0, metadata: { shardId: this.getShardId() } };
     } else {
       result = await this.executeSQL('MUTATION', query.sql, query.params ?? [], tenantId);
-      // Emit cache invalidation event
-      await this.emitInvalidationEvent(tenantId, this.extractTableName(query.sql));
     }
 
     return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
+   * Handle batch mutation operations. Body: { tenantId: string, operations: Array<{ sql: string; params?: unknown[] }> }
+   */
+  private async handleMutationBatch(request: Request): Promise<Response> {
+    const parsed = await request.text();
+    let body = {} as { tenantId?: string; operations?: Array<{ sql: string; params?: unknown[] }> };
+    try {
+      body = (parsed ? JSON.parse(parsed) : {}) as typeof body;
+    } catch {
+      body = {} as typeof body;
+    }
+    const tenantId = body.tenantId ?? '';
+    const operations = Array.isArray(body.operations) ? body.operations : [];
+
+    if (operations.length === 0) {
+      return new Response(JSON.stringify({ success: true, rowsAffected: 0 }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate and capacity check
+    for (const op of operations) {
+      this.validateTenantAccess(tenantId, op.sql);
+    }
+    await this.checkCapacity();
+
+    let rowsAffected = 0;
+    const touchedTables = new Set<string>();
+    // Execute as a single transaction if possible
+    const maybeStorage = this.storage as unknown as { transactionSync?: (fn: () => void) => void };
+    const execAll = () => {
+      for (const op of operations) {
+        this.storage.sql.exec(op.sql, ...((op.params as unknown[]) || []));
+        const t = this.extractTableName(op.sql);
+        if (t) {
+          touchedTables.add(t);
+        }
+        try {
+          const ch = this.storage.sql.exec('SELECT changes() as n').one() as { n?: number };
+          rowsAffected += typeof ch?.n === 'number' ? ch.n : 0;
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    try {
+      if (typeof maybeStorage.transactionSync === 'function') {
+        maybeStorage.transactionSync(execAll);
+      } else {
+        // Explicit SQL transaction fallback
+        try {
+          this.storage.sql.exec('BEGIN');
+        } catch (e) {
+          this.logger.warn('BEGIN failed', { error: (e as Error).message });
+        }
+        try {
+          execAll();
+          this.storage.sql.exec('COMMIT');
+        } catch (e) {
+          try {
+            this.storage.sql.exec('ROLLBACK');
+          } catch (e2) {
+            this.logger.warn('ROLLBACK failed', { error: (e2 as Error).message });
+          }
+          throw e;
+        }
+      }
+    } catch (e) {
+      const err = this.normalizeSQLError(e as Error);
+      return new Response(JSON.stringify({ success: false, error: err.message }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Emit a single invalidation event per touched table
+    for (const table of touchedTables) {
+      await this.emitInvalidationEvent(tenantId, table);
+    }
+    await this.refreshCapacityIfDue();
+
+    // Minimal metrics log
+    try {
+      this.logger.info('mutation_batch', {
+        tenantId,
+        ops: operations.length,
+        tables: Array.from(touchedTables),
+        rowsAffected,
+      });
+    } catch (e) {
+      this.logger.warn('batch metrics log failed', { error: (e as Error).message });
+    }
+
+    return new Response(JSON.stringify({ success: true, rowsAffected }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -387,10 +494,10 @@ export class TableShard implements DurableObject {
    * Execute SELECT query
    */
   private async executeSQL(
-    kind: 'SELECT' | 'MUTATION' | 'DDL',
+    _kind: 'SELECT' | 'MUTATION' | 'DDL',
     sql: string,
     params: unknown[],
-    tenantId: string
+    _tenantId: string
   ): Promise<QueryResult> {
     const start = Date.now();
     const upper = sql.trim().toUpperCase();
@@ -398,65 +505,53 @@ export class TableShard implements DurableObject {
     // Enforce prepared-style usage via bindings to avoid injection
     this.touchStmtCache(sql);
 
-    const run = () => {
-      try {
-        // Use parameter bindings via spread args
-        const cursor = this.storage.sql.exec(sql, ...(params as unknown[]));
-        if (upper.startsWith('SELECT')) {
-          const rows = cursor.toArray();
-          return {
-            rows,
-            metadata: {
-              fromCache: false,
-              shardId: this.getShardId(),
-              executionTimeMs: Date.now() - start,
-            },
-          } satisfies QueryResult;
-        }
-
-        // For writes/DDL, compute rowsAffected and insertId when possible
-        let rowsAffected = 0;
-        try {
-          const changesCur = this.storage.sql.exec('SELECT changes() as n');
-          const one = changesCur.one() as { n?: number } | undefined;
-          rowsAffected = typeof one?.n === 'number' ? one.n : 0;
-        } catch {
-          // ignore
-        }
-        let insertId: number | undefined;
-        if (upper.startsWith('INSERT')) {
-          try {
-            const idCur = this.storage.sql.exec('SELECT last_insert_rowid() as id');
-            const one = idCur.one() as { id?: number } | undefined;
-            insertId = typeof one?.id === 'number' ? one.id : undefined;
-          } catch {
-            // ignore
-          }
-        }
-
+    try {
+      // Use parameter bindings via spread args
+      const cursor = this.storage.sql.exec(sql, ...(params as unknown[]));
+      if (upper.startsWith('SELECT')) {
+        const rows = cursor.toArray();
         return {
-          rows: [],
-          rowsAffected,
-          ...(insertId !== undefined ? { insertId } : {}),
+          rows,
           metadata: {
+            fromCache: false,
             shardId: this.getShardId(),
             executionTimeMs: Date.now() - start,
           },
         } satisfies QueryResult;
-      } catch (e) {
-        throw this.normalizeSQLError(e as Error);
       }
-    };
 
-    const result = await this.withRetry(run);
+      // For writes/DDL, compute rowsAffected and insertId when possible
+      let rowsAffected = 0;
+      try {
+        const changesCur = this.storage.sql.exec('SELECT changes() as n');
+        const one = changesCur.one() as { n?: number } | undefined;
+        rowsAffected = typeof one?.n === 'number' ? one.n : 0;
+      } catch {
+        // ignore
+      }
+      let insertId: number | undefined;
+      if (upper.startsWith('INSERT')) {
+        try {
+          const idCur = this.storage.sql.exec('SELECT last_insert_rowid() as id');
+          const one = idCur.one() as { id?: number } | undefined;
+          insertId = typeof one?.id === 'number' ? one.id : undefined;
+        } catch {
+          // ignore
+        }
+      }
 
-    // For mutations/DDL, emit invalidation after success
-    if (kind !== 'SELECT') {
-      await this.emitInvalidationEvent(tenantId, this.extractTableName(sql));
-      await this.refreshCapacityIfDue();
+      return {
+        rows: [],
+        rowsAffected,
+        ...(insertId !== undefined ? { insertId } : {}),
+        metadata: {
+          shardId: this.getShardId(),
+          executionTimeMs: Date.now() - start,
+        },
+      } satisfies QueryResult;
+    } catch (e) {
+      throw this.normalizeSQLError(e as Error);
     }
-
-    return result;
   }
 
   /**
@@ -694,30 +789,6 @@ export class TableShard implements DurableObject {
       return new EdgeSQLError('SQL syntax error', 'SQL_SYNTAX_ERROR');
     }
     return new EdgeSQLError(msg, 'SQL_ERROR');
-  }
-
-  private async withRetry<T>(fn: () => T | Promise<T>): Promise<T> {
-    const max = 3;
-    let attempt = 0;
-    let lastErr: unknown;
-    while (attempt < max) {
-      try {
-        return await Promise.resolve(fn());
-      } catch (e) {
-        const err = this.normalizeSQLError(e as Error);
-        lastErr = err;
-        if (err.code !== 'RETRYABLE') {
-          break;
-        }
-        await this.sleep(25 * Math.pow(2, attempt) + Math.floor(Math.random() * 25));
-      }
-      attempt++;
-    }
-    throw lastErr instanceof Error ? lastErr : new EdgeSQLError('Unknown error', 'UNKNOWN');
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((r) => setTimeout(r, ms));
   }
 
   private getTableCountSafe(): number {

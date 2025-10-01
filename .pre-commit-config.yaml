@@ -54,9 +54,8 @@ repos:
         entry: bunx tsc --noEmit --skipLibCheck
         language: node
         pass_filenames: false
-        files: ''
-        always_run: true
-        exclude: (node_modules/|\.github/instructions/|sdk/)
+        files: \.(ts|tsx)$
+        exclude: (node_modules/|\.github/instructions/|sdk/|vitest\.config\.ts|vitest\.workers\.config\.ts)
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.32.0

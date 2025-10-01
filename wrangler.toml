@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [env.development]
 name = "workersql-gateway-dev"
-vars = { ENVIRONMENT = "development", LOG_LEVEL = "info", MAX_SHARD_SIZE_GB = "10", CACHE_TTL_MS = "30000", CACHE_SWR_MS = "120000" }
+vars = { ENVIRONMENT = "development", LOG_LEVEL = "info", MAX_SHARD_SIZE_GB = "10", CACHE_TTL_MS = "30000", CACHE_SWR_MS = "120000", BATCH_MAX_OPS = "2", BATCH_MAX_BYTES = "5120" }
 compatibility_flags = ["nodejs_compat"]
 
 [[env.development.kv_namespaces]]

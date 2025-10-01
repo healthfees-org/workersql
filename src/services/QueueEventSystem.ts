@@ -1,6 +1,7 @@
 /* eslint-disable no-console, @typescript-eslint/no-unused-vars */
 
 import { DatabaseEvent, CloudflareEnvironment, EdgeSQLError } from '../types';
+import { CacheService } from './CacheService';
 
 /**
  * QueueEventSystem - Handles asynchronous event processing for database operations
@@ -420,23 +421,77 @@ export async function queueConsumer(
   batch: MessageBatch,
   env: CloudflareEnvironment
 ): Promise<void> {
-  const queueSystem = new QueueEventSystem(env);
+  // Batch-oriented invalidation with idempotency and deduplication
+  const cache = new CacheService(env);
 
+  // Collect all prefixes to invalidate from messages in this batch
+  const invalidatePrefixes = new Set<string>();
+  const processed: Array<{ msg: Message; alreadyProcessed: boolean }> = [];
+
+  // Idempotency key prefix
+  const idemPrefix = 'q:processed:';
+
+  // First pass: determine which messages to process (idempotent) and collect prefixes
   for (const message of batch.messages) {
     try {
-      const queueMessage: QueueMessage = {
-        id: message.id,
-        body: message.body as DatabaseEvent,
-        timestamp: message.timestamp.getTime(),
-        attempts: 1,
-        maxRetries: 3,
-      };
+      const idKey = `${idemPrefix}${message.id}`;
+      // If processed marker exists, skip processing but still ack
+      const seen = await (env.APP_CACHE.get as unknown as (k: string) => Promise<string | null>)(
+        idKey
+      );
+      const alreadyProcessed = !!seen;
+      processed.push({ msg: message, alreadyProcessed });
 
-      await queueSystem.processMessage(queueMessage);
-      message.ack();
-    } catch (error) {
-      console.error('Failed to process queue message:', error);
-      message.retry();
+      if (alreadyProcessed) {
+        continue;
+      }
+
+      const event = message.body as DatabaseEvent;
+      if (event?.type === 'invalidate' && Array.isArray(event.keys)) {
+        for (const base of event.keys) {
+          // Expect base key format: `${tenantId}:${tableName}` -> convert to `${tenantId}:q:${tableName}:*`
+          const [tenant, table] = String(base).split(':');
+          if (tenant && table) {
+            invalidatePrefixes.add(`${tenant}:q:${table}:`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error during idempotency check:', err);
+      // In case of errors, fall back to processing this message individually
+      const event = message.body as DatabaseEvent;
+      if (event?.type === 'invalidate' && Array.isArray(event.keys)) {
+        for (const base of event.keys) {
+          const [tenant, table] = String(base).split(':');
+          if (tenant && table) {
+            invalidatePrefixes.add(`${tenant}:q:${table}:`);
+          }
+        }
+      }
+    }
+  }
+
+  // Execute batched invalidations by prefix
+  try {
+    await Promise.all(
+      Array.from(invalidatePrefixes).map((prefix) => cache.deleteByPattern(`${prefix}*`))
+    );
+  } catch (err) {
+    console.error('Batch invalidation failed:', err);
+  }
+
+  // Second pass: mark processed and ack/retry accordingly
+  for (const { msg, alreadyProcessed } of processed) {
+    try {
+      if (!alreadyProcessed) {
+        // Mark idempotent processed marker with short TTL (10 minutes)
+        const idKey = `${idemPrefix}${msg.id}`;
+        await env.APP_CACHE.put(idKey, '1', { expirationTtl: 600 });
+      }
+      msg.ack();
+    } catch (err) {
+      console.error('Failed to finalize message processing, retrying message:', err);
+      msg.retry();
     }
   }
 }

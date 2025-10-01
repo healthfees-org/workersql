@@ -3,7 +3,7 @@
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "allowJs": true,
@@ -43,7 +43,13 @@
       "@/utils/*": ["./src/utils/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.d.ts", "*.d.ts"],
+  "include": [
+    "src/**/*",
+    "tests/**/*.ts",
+    "tests/**/*.d.ts",
+    "*.d.ts",
+    "vitest.*.ts"
+  ],
   "exclude": [
     "node_modules",
     "**/node_modules/**",
@@ -52,6 +58,8 @@
     "coverage",
     "sdk/**/*",
     "tests/integration/**",
-    "**/*.js"
+    "**/*.js",
+    "vitest.config.ts",
+    "vitest.workers.config.ts"
   ]
 }

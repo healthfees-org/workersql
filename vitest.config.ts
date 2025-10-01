@@ -27,6 +27,11 @@ export default defineConfig({
           poolOptions: { threads: { singleThread: true } },
           clearMocks: true,
           restoreMocks: true,
+          coverage: {
+            provider: 'istanbul',
+            reporter: ['text', 'json', 'html'],
+            reportsDirectory: 'coverage',
+          },
           env: {
             NODE_ENV: 'test',
             ENVIRONMENT: 'test',
@@ -61,6 +66,11 @@ export default defineConfig({
             sequence: { concurrent: false },
             clearMocks: true,
             restoreMocks: true,
+            coverage: {
+              provider: 'istanbul',
+              reporter: ['text', 'json', 'html'],
+              reportsDirectory: 'coverage',
+            },
           },
         }),
         {
