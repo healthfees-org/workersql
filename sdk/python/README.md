@@ -42,22 +42,47 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
+### Using DSN String
+
+```python
+from workersql_client import WorkerSQLClient
+
+# Connect using DSN
+client = WorkerSQLClient(dsn='workersql://username:password@api.workersql.com:443/mydb?apiKey=your-key')
+
+# Execute a query
+result = client.query("SELECT * FROM users WHERE id = ?", [1])
+print(f"User: {result.data}")
+
+# Close the connection
+client.close()
+```
+
+### Using Configuration Dict
+
 ```python
 from workersql_client import WorkerSQLClient
 
 # Initialize client
 config = {
-    "api_endpoint": "https://your-workersql-endpoint.com/api",
-    "host": "your-database-host",
-    "username": "your-username",
-    "password": "your-password",
-    "database": "your-database",
+    "host": "api.workersql.com",
+    "port": 443,
+    "database": "mydb",
+    "username": "myuser",
+    "password": "mypass",
+    "api_key": "your-api-key",
+    "ssl": True,
+    "pooling": {
+        "enabled": True,
+        "min_connections": 2,
+        "max_connections": 10
+    }
 }
 
-with WorkerSQLClient(config) as client:
-    # Execute a simple query
-    result = client.query("SELECT * FROM users WHERE id = ?", [1])
-    print(f"User: {result.data}")
+with WorkerSQLClient(config=config) as client:
+    # Execute queries
+    users = client.query("SELECT * FROM users")
+    print(f"Users: {users.data}")
 
     # Execute batch queries
     queries = [

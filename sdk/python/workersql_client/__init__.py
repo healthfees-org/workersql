@@ -19,6 +19,9 @@ from .workersql_client import (
     BatchQueryResponse,
     HealthCheckResponse,
 )
+from .dsn_parser import DSNParser, ParsedDSN
+from .retry_logic import RetryStrategy
+from .connection_pool import ConnectionPool, PooledConnection
 
 __version__ = "1.0.0"
 __author__ = "HealthFees Organization"
@@ -38,4 +41,9 @@ __all__ = [
     "BatchQueryRequest",
     "BatchQueryResponse",
     "HealthCheckResponse",
+    "DSNParser",
+    "ParsedDSN",
+    "RetryStrategy",
+    "ConnectionPool",
+    "PooledConnection",
 ]
