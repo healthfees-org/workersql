@@ -55,6 +55,12 @@ const workspace = defineWorkspace([
       sequence: { concurrent: false },
       clearMocks: true,
       restoreMocks: true,
+      alias: {
+        '@': resolve(__dirname, './src'),
+        '@/types': resolve(__dirname, './src/types'),
+        '@/services': resolve(__dirname, './src/services'),
+        '@/utils': resolve(__dirname, './src/utils'),
+      },
     },
   }),
 ]);

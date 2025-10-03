@@ -7,7 +7,7 @@ Implement advanced features including shard splitting, monitoring, observability
 
 ### 1. Shard Management & Splitting
 - [x] Online shard splitting implementation
-- [x]] Dual-write during migration
+- [x] Dual-write during migration
 - [x] Backfill and tail processing
 - [x] Routing map updates and versioning
 - [x] Rollback capabilities
@@ -26,7 +26,7 @@ Implement advanced features including shard splitting, monitoring, observability
 - [ ] Network security controls
 - [ ] Compliance reporting features
 
-### 4. Performance Optimizations
+### 4. @DEFER: Performance Optimizations
 - [ ] Query optimization engine
 - [ ] Advanced caching strategies
 - [ ] Connection pooling optimizations

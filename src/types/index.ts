@@ -209,6 +209,8 @@ export interface CloudflareEnvironment {
   DEFAULT_CACHE_SWR?: string;
   SHARD_COUNT?: string;
   JWT_SECRET?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
 }
 
 export interface WorkerRequest {

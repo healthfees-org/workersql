@@ -10,8 +10,8 @@
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "test": "vitest run --config vitest.workspace.ts",
-    "test:watch": "vitest watch --config vitest.workspace.ts",
-    "test:coverage": "vitest run --config vitest.workspace.ts --coverage",
+    "test:watch": "vitest watch --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.workers.config.ts",
     "test:e2e": "vitest run --testPathPattern=e2e",
@@ -21,7 +21,7 @@
     "format": "prettier --write \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json}\" \"tests/**/*.{ts,js,json}\"",
     "security:check": "bun audit && bandit -r sdk/python/ || true",
-    "workflow:check": "npm run lint && npm run format && npm run test:coverage && npm run build",
+    "workflow:check": "bun run lint && bun run format && bun run test:coverage && bun run build",
     "prepare": "pre-commit install"
   },
   "keywords": [
