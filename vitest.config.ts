@@ -29,5 +29,30 @@ export default defineConfig({
     poolOptions: { threads: { singleThread: true } },
     clearMocks: true,
     restoreMocks: true,
+    coverage: {
+      provider: 'istanbul',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/**',
+        'dist/**',
+        'coverage/**',
+        'tests/**',
+        'sdk/**',
+        '**/*.d.ts',
+        '**/*.config.{js,ts}',
+        'vitest.*.ts',
+        'wrangler.toml*',
+      ],
+      include: ['src/**/*.{ts,js}'],
+      all: true,
+      thresholds: {
+        global: {
+          branches: 80,
+          functions: 80,
+          lines: 80,
+          statements: 80,
+        },
+      },
+    },
   },
 });
