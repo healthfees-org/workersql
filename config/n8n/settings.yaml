@@ -1,0 +1,9 @@
+# n8n settings table policy
+primary_key: key
+shard_by: tenant_id
+
+cache:
+  mode: strong # No caching for instance configuration
+
+routing:
+  strategy: tenant_hash

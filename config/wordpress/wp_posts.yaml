@@ -1,0 +1,11 @@
+# WordPress posts table policy (blog posts, pages, custom post types)
+primary_key: ID
+shard_by: tenant_id
+
+cache:
+  mode: bounded
+  ttl_ms: 300000 # 5 minutes
+  swr_ms: 1800000 # 30 minutes
+
+routing:
+  strategy: tenant_hash

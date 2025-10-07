@@ -1,0 +1,14 @@
+# WooCommerce inventory table policy
+primary_key: product_id
+shard_by: product_id # Co-locate with product
+
+cache:
+  mode: bounded
+  ttl_ms: 30000 # 30 seconds (prevent overselling)
+  swr_ms: 300000 # 5 minutes
+  always_strong_columns:
+    - stock_quantity
+    - reserved_quantity
+
+routing:
+  strategy: table_hash

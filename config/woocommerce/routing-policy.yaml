@@ -1,0 +1,20 @@
+# WooCommerce routing policy
+version: 1
+
+# Product shards (hash-based distribution by product_id)
+ranges:
+  - prefix: 'product_0'
+    shard: shard_0
+  - prefix: 'product_1'
+    shard: shard_1
+  - prefix: 'product_2'
+    shard: shard_2
+
+# Customer and order shards (hash-based distribution by customer_id)
+# Orders co-located with customers on shards 3-7
+# Sessions distributed on shards 8-9
+
+# Default configuration
+defaults:
+  shard_count: 10
+  strategy: table_hash

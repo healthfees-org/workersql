@@ -1,0 +1,9 @@
+# WooCommerce payment tokens table policy
+primary_key: token_id
+shard_by: customer_id # Co-locate with customer
+
+cache:
+  mode: strong # No caching for payment data (PCI compliance)
+
+routing:
+  strategy: table_hash

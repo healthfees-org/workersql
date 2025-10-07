@@ -1,0 +1,9 @@
+# WooCommerce orders table policy
+primary_key: order_id
+shard_by: customer_id # Co-locate with customer data
+
+cache:
+  mode: strong # No caching for transactional data
+
+routing:
+  strategy: table_hash

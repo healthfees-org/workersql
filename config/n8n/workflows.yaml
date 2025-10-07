@@ -1,0 +1,11 @@
+# n8n workflows table policy
+primary_key: id
+shard_by: tenant_id
+
+cache:
+  mode: cached
+  ttl_ms: 600000 # 10 minutes
+  swr_ms: 3600000 # 1 hour
+
+routing:
+  strategy: tenant_hash
