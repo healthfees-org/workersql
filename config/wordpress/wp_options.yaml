@@ -1,0 +1,9 @@
+# WordPress options table policy (site configuration)
+primary_key: option_id
+shard_by: tenant_id
+
+cache:
+  mode: strong # No caching for critical configuration
+
+routing:
+  strategy: tenant_hash

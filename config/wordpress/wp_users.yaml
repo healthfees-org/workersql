@@ -1,0 +1,14 @@
+# WordPress users table policy
+primary_key: ID
+shard_by: tenant_id
+
+cache:
+  mode: bounded
+  ttl_ms: 600000 # 10 minutes
+  swr_ms: 3600000 # 1 hour
+  always_strong_columns:
+    - user_email
+    - user_login
+
+routing:
+  strategy: tenant_hash

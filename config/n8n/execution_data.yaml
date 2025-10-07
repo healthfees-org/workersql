@@ -1,0 +1,11 @@
+# n8n execution data table policy
+primary_key: execution_id
+shard_by: workflow_id # Co-locate with executions
+
+cache:
+  mode: cached
+  ttl_ms: 1800000 # 30 minutes
+  swr_ms: 14400000 # 4 hours
+
+routing:
+  strategy: table_hash

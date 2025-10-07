@@ -1,0 +1,11 @@
+# WordPress terms table policy (categories and tags)
+primary_key: term_id
+shard_by: tenant_id
+
+cache:
+  mode: cached
+  ttl_ms: 600000 # 10 minutes
+  swr_ms: 7200000 # 2 hours
+
+routing:
+  strategy: tenant_hash

@@ -1,0 +1,11 @@
+# WooCommerce customer sessions table policy
+primary_key: session_id
+shard_by: session_id # Hash-based for load distribution
+
+cache:
+  mode: bounded
+  ttl_ms: 60000 # 1 minute
+  swr_ms: 300000 # 5 minutes
+
+routing:
+  strategy: table_hash

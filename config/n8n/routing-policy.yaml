@@ -1,0 +1,33 @@
+# n8n routing policy with time-based partitioning
+version: 1
+
+# Time-based partitioning for executions
+# Active executions (0-7 days) on shard_0
+# Semi-active (8-30 days) on shard_1
+# Archive (31-90 days) on shard_2
+# Long-term archive (>90 days) on shard_3
+
+# Tenant-based routing for workflows and metadata
+tenants:
+  tenant_n8n_main: shard_0
+
+# Range-based routing
+ranges:
+  - prefix: 'execution_active'
+    shard: shard_0
+  - prefix: 'execution_semi'
+    shard: shard_1
+  - prefix: 'execution_archive'
+    shard: shard_2
+  - prefix: 'execution_longterm'
+    shard: shard_3
+
+# Webhook and trigger shards (hash-distributed)
+# shard_4-5 for webhooks
+# shard_6 for credentials and security
+# shard_7 for metadata and settings
+
+# Default configuration
+defaults:
+  shard_count: 8
+  strategy: tenant_hash

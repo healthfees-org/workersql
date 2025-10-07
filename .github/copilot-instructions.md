@@ -66,13 +66,13 @@ Never use brevity or mock implementation in production code. It is demanded that
 
 ## Testing
     You will maintain 100% code coverage in our testing using vitest Istanbul and Cloudflare miniflare. You *MUST* explicitly test for code coverage and maintain 100% code coverage for all functions and classes created. API endpoints need to be unit tested, fuzz tested. All functions and methods must have comprehensive unit testing. We expect the tests to be organized as follows:
-        - /client/tests/unit OR /server/tests/unit #unit testing
-        - /client/tests/integration OR /server/tests/integration #integration testing
-        - /client/tests/smoke OR /server/tests/smoke #smoke testing
-        - /client/tests/fuzz OR /server/tests/fuzz #api and forms fuzz testing (any point that can accept a GET, POST, PUT or DELETE action)
-        - /client/tests/browser OR /server/tests/browser #playwright testing
-        - /client/tests/browser/test-results OR /server/tests/browser/test-results #playwright testing results; .gitignore this folder
-        - /client/tests/browser/playwright-report OR /server/tests/browser/playwright-report #playwright report; .gitignore this folder
+        - /sdk/*/tests/unit OR /src/tests/unit #unit testing
+        - /sdk/*/tests/integration OR /src/tests/integration #integration testing
+        - /sdk/*/tests/smoke OR /src/tests/smoke #smoke testing
+        - /sdk/*/tests/fuzz OR /src/tests/fuzz #api and forms fuzz testing (any point that can accept a GET, POST, PUT or DELETE action)
+        - /sdk/*/tests/browser OR /src/tests/browser #playwright testing
+        - /sdk/*/tests/browser/test-results OR /src/tests/browser/test-results #playwright testing results; .gitignore this folder
+        - /sdk/*/tests/browser/playwright-report OR /src/tests/browser/playwright-report #playwright report; .gitignore this folder
 
     Every objective requires code quality coverage in the form of unit tests, integration tests, smoke test and acceptance test. You must cover unit tests, integration tests, browser tests (via Playwright) and smoke tests for every objective you complete. All API endpoints must have a fuzz test for security. Acceptance tests must be clearly defined in an .md document. You will be asked to create E2E test coverage using Playwright scripting with visual regression testing. You will comply and assist with debugging; never using brevity or "short-cuts", "cheat codes", "laziness" or "this file is corrupted so I will make a simpler version". You are to act as enterprise software engineer and use all tools (such as Powershell scripting) to quickly solve thematic issues. Time is of the esssence and you must think critically before solving a problem.
 
