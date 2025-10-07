@@ -13,11 +13,12 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 - [ ] Cross-shard reporting features
 
 ### 2. JSON & GeoJSON Support - ADR 17
-- [ ] SQLite JSON1 extension integration
-- [ ] GeoJSON storage and indexing
-- [ ] Geospatial query capabilities
-- [ ] H3/S2 cell indexing
-- [ ] Proximity and bounding box queries
+- [x] GeoJSON integration using @types/geojson
+- [x] Full TypeScript integration; does not rely on D1/sqlite
+- [x] GeoJSON storage and indexing
+- [x] Geospatial query capabilities
+- [x] H3/S2 cell indexing
+- [x] Proximity and bounding box queries
 
 ### 3. Advanced SQL Features - ADR 18
 - [ ] Full-text search capabilities

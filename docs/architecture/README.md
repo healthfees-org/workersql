@@ -14,6 +14,12 @@ ADRs document important architectural decisions, their context, and rationale.
 | [ADR-005](./005-jest-vitest-testing.md)           | Jest and Vitest Testing Framework Integration | Accepted | 2025-09-01 |
 | [ADR-006](./006-routing-sharding-system.md)       | Routing and Sharding System Architecture      | Accepted | 2025-09-02 |
 | [ADR-007](./007-gateway-worker-implementation.md) | Gateway Worker Implementation Architecture    | Accepted | 2025-09-02 |
+| [ADR-008](./008-sql-compatibility-layer.md)       | SQL Compatibility Layer                       | Accepted | 2025-09-02 |
+| [ADR-009](./009-connection-management.md)         | Connection Management                         | Accepted | 2025-09-02 |
+| [ADR-010](./010-sdk-integration.md)               | SDK Integration                               | Accepted | 2025-09-02 |
+| [ADR-011](./011-shard-management.md)              | Shard Management                              | Accepted | 2025-09-02 |
+| [ADR-012](./012-security-enhancements.md)         | Security Enhancements                         | Accepted | 2025-09-02 |
+| [ADR-017](./017-geospatial.md)                    | Geospatial and GeoJSON Support                | Accepted | 2025-01-07 |
 
 ## ADR Template
 
