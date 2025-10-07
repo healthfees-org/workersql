@@ -1,0 +1,19 @@
+# WordPress multi-tenant routing policy
+version: 1
+
+# VIP sites with dedicated shards
+tenants:
+  site_wordpress_vip_1: shard_0
+  site_wordpress_vip_2: shard_1
+
+# Range-based routing for tenant prefixes
+ranges:
+  - prefix: 'site_wordpress_vip'
+    shard: shard_0
+  - prefix: 'site_wordpress'
+    shard: shard_2
+
+# Default configuration for hash-based distribution
+defaults:
+  shard_count: 8
+  strategy: tenant_hash

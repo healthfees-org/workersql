@@ -1,0 +1,13 @@
+# WooCommerce customers table policy
+primary_key: customer_id
+shard_by: customer_id
+
+cache:
+  mode: bounded
+  ttl_ms: 300000 # 5 minutes
+  swr_ms: 1800000 # 30 minutes
+  always_strong_columns:
+    - customer_email
+
+routing:
+  strategy: table_hash

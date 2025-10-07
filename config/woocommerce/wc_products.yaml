@@ -1,0 +1,11 @@
+# WooCommerce products table policy
+primary_key: product_id
+shard_by: product_id # Hash-based distribution
+
+cache:
+  mode: cached
+  ttl_ms: 900000 # 15 minutes
+  swr_ms: 7200000 # 2 hours
+
+routing:
+  strategy: table_hash

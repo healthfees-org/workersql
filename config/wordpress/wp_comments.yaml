@@ -1,0 +1,11 @@
+# WordPress comments table policy
+primary_key: comment_ID
+shard_by: tenant_id
+
+cache:
+  mode: bounded
+  ttl_ms: 300000 # 5 minutes
+  swr_ms: 1800000 # 30 minutes
+
+routing:
+  strategy: tenant_hash
