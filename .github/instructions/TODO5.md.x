@@ -5,21 +5,21 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 
 ## Deliverables
 
-### 1. D1 Mirror & Analytics
+### 1. D1 Mirror & Analytics  - ADR 16
 - [ ] D1 synchronization from Durable Objects
 - [ ] Batch processing for analytics workloads
 - [ ] Portable data export capabilities
 - [ ] Analytics query optimization
 - [ ] Cross-shard reporting features
 
-### 2. JSON & GeoJSON Support
+### 2. JSON & GeoJSON Support - ADR 17
 - [ ] SQLite JSON1 extension integration
 - [ ] GeoJSON storage and indexing
 - [ ] Geospatial query capabilities
 - [ ] H3/S2 cell indexing
 - [ ] Proximity and bounding box queries
 
-### 3. Advanced SQL Features
+### 3. Advanced SQL Features - ADR 18
 - [ ] Full-text search capabilities
 - [ ] Advanced indexing strategies
 - [ ] Materialized view support
@@ -27,13 +27,13 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 - [ ] Advanced JSON path operations
 - [ ] @DEFER: Cloudflare AI Search integration (previously: AutoRAG)
 
-### 4. Ecosystem Integrations
+### 4. Ecosystem Integrations - ADR 19
 - [ ] ORM compatibility (Drizzle, SQLModel/SQLAlchey, Prisma, TypeORM, etc.)
 - [ ] Observability platform integrations
 - [ ] CI/CD pipeline templates
 - [ ] Cloud deployment automation (Terraform)
 
-### 5. Developer Tools & Utilities
+### 5. Developer Tools & Utilities - ADR 20
 - [ ] Database schema migration tools
 - [ ] Performance profiling utilities
 - [ ] Load testing frameworks

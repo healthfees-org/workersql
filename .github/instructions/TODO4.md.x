@@ -28,14 +28,14 @@ Implement advanced features including shard splitting, monitoring, observability
 - [ ] @NEW @TODO: Integrate Zero Trust Access for GUI
   - [ ] @REQUIRES: Update /docs/architecture/012-security-enhancements.md
 
-### 4. @DEFER: Performance Optimizations
+### 4. @DEFER: Performance Optimizations - ADR 13
 - [ ] Query optimization engine
 - [ ] Advanced caching strategies
 - [ ] Connection pooling optimizations
 - [ ] Batch operation improvements
 - [ ] Memory usage optimizations
 
-### 5. @DEFER: Operational Tools
+### 5. @DEFER: Operational Tools - ADR 14
 - [ ] Administrative CLI tools
     - [ ] PHP CLI
     - [ ] Node CLI
@@ -45,7 +45,7 @@ Implement advanced features including shard splitting, monitoring, observability
 - [ ] Disaster recovery planning
 - [ ] Capacity planning tools
 
-### 6. Client GUI
+### 6. Client GUI  - ADR 15
 - [ ] Svelte SPA that mimics phpMyAdmin, but modern
 - [ ] Tailwind CSS + ShadUI
 - [ ] Create in root `/src/app` folder
