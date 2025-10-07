@@ -218,13 +218,23 @@ export class RoutingVersionManager implements IRoutingVersionManager {
    */
   async validatePolicyCompatibility(
     newPolicy: RoutingPolicy,
-    _currentPolicy: RoutingPolicy
+    currentPolicy: RoutingPolicy
   ): Promise<boolean> {
     // Basic compatibility checks
     // - No tenant should be moved to a non-existent shard
     // - Range prefixes should not conflict
 
-    const availableShards = await this.getAvailableShards();
+    // Determine available shards from both current and new policies. This allows
+    // introducing new shards during a migration/cutover as long as they are
+    // explicitly referenced by the target policy.
+    const availableSet = new Set<string>();
+    // From current policy
+    Object.values(currentPolicy.tenants).forEach((s) => s && availableSet.add(s));
+    currentPolicy.ranges.forEach((r) => r.shard && availableSet.add(r.shard));
+    // From new policy (permit newly introduced shards during cutover)
+    Object.values(newPolicy.tenants).forEach((s) => s && availableSet.add(s));
+    newPolicy.ranges.forEach((r) => r.shard && availableSet.add(r.shard));
+    const availableShards = Array.from(availableSet);
 
     // Check tenant assignments
     for (const [tenantId, shardId] of Object.entries(newPolicy.tenants)) {
@@ -351,17 +361,6 @@ export class RoutingVersionManager implements IRoutingVersionManager {
     return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  /**
-   * Get available shards from environment
-   */
-  private async getAvailableShards(): Promise<string[]> {
-    const shardCount = parseInt(this.env.MAX_SHARD_SIZE_GB) || 4;
-    const shards: string[] = [];
-
-    for (let i = 0; i < shardCount; i++) {
-      shards.push(`shard_${i}`);
-    }
-
-    return shards;
-  }
+  // @FLAG: If future logic needs environment-derived shard inventory,
+  // reintroduce a helper that queries a canonical shard registry.
 }

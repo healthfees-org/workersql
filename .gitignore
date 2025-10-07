@@ -21,7 +21,7 @@ wrangler.toml.local
 npm-debug.log*
 
 # IDE
-.vscode/settings.json
+#.vscode/settings.json
 .idea/
 
 # OS

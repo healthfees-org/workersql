@@ -14,6 +14,8 @@ import {
 } from './types';
 import { queueConsumer } from './services/QueueEventSystem';
 import { Logger } from './services/Logger';
+import { AuthService } from './services/AuthService';
+import { AuditLoggingService } from './services/AuditLoggingService';
 
 /**
  * Main gateway worker entry point for Edge SQL
@@ -82,6 +84,8 @@ export class EdgeSQLGateway {
   private _stubCache: Map<string, DurableObjectStub> = new Map();
   private logger: Logger;
   private shardSplitService: ShardSplitService;
+  private authService: AuthService;
+  private audit: AuditLoggingService;
 
   constructor(env: CloudflareEnvironment, ctx: ExecutionContext) {
     this._env = env;
@@ -97,6 +101,8 @@ export class EdgeSQLGateway {
     const evars = env as unknown as Record<string, unknown>;
     const envStr = typeof evars['ENVIRONMENT'] === 'string' ? (evars['ENVIRONMENT'] as string) : '';
     this.logger = new Logger({ service: 'Gateway' }, { environment: envStr });
+    this.authService = new AuthService(this._env);
+    this.audit = new AuditLoggingService(this._env);
   }
 
   /**
@@ -107,6 +113,15 @@ export class EdgeSQLGateway {
     const requestId = crypto.randomUUID();
 
     try {
+      // Network security controls
+      const net = this.enforceNetworkSecurity(request);
+      if (!net.allowed) {
+        return new Response(net.reason || 'Forbidden', {
+          status: net.status || 403,
+          headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+        });
+      }
+
       // Log incoming request
       this.logRequest(request, requestId);
 
@@ -134,12 +149,12 @@ export class EdgeSQLGateway {
       }
 
       // Authentication and tenant validation
-      const authResult = this.validateAuth(request);
+      const authResult = await this.validateAuth(request);
       if (!authResult.valid || !authResult.tenantId) {
         this.log('warn', 'Authentication failed', { requestId });
         return new Response('Unauthorized', {
           status: 401,
-          headers: this.getCORSHeaders(),
+          headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
         });
       }
 
@@ -180,12 +195,40 @@ export class EdgeSQLGateway {
         cached: response.cached,
       });
 
+      // Audit log database operation (non-blocking)
+      const userId = authResult.userId;
+      const tableName = sqlRequest.tableName || 'unknown';
+      const status = 'success' as const;
+      const auditCtxBase = {
+        tenantId: authResult.tenantId!,
+        permissions: authResult.permissions || [],
+        tokenHash: '',
+      } as const;
+      const auditCtx = (
+        userId ? { ...auditCtxBase, userId } : auditCtxBase
+      ) as import('./types').AuthContext;
+      this._ctx.waitUntil(
+        this.audit
+          .logDatabaseOperation(
+            auditCtx,
+            sqlRequest.type as 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE',
+            tableName,
+            status,
+            undefined,
+            executionTime,
+            undefined,
+            request
+          )
+          .catch(() => void 0)
+      );
+
       return new Response(JSON.stringify(response), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
           'X-Request-ID': requestId,
           ...this.getCORSHeaders(),
+          ...this.getSecurityHeaders(),
         },
       });
     } catch (error) {
@@ -207,6 +250,7 @@ export class EdgeSQLGateway {
             'Content-Type': 'application/json',
             'X-Request-ID': requestId,
             ...this.getCORSHeaders(),
+            ...this.getSecurityHeaders(),
           },
         }
       );
@@ -214,12 +258,12 @@ export class EdgeSQLGateway {
   }
 
   private async handleWebSocket(request: Request): Promise<Response> {
-    const auth = this.validateAuth(request);
+    const auth = await this.validateAuth(request);
     if (!auth.valid || !auth.tenantId) {
       // Return HTTP 401 for failed authentication instead of WebSocket response
       return new Response('Unauthorized', {
         status: 401,
-        headers: this.getCORSHeaders(),
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
       });
     }
 
@@ -344,9 +388,12 @@ export class EdgeSQLGateway {
    * Handle batch mutations across one or more shards
    */
   public async handleBatch(request: Request): Promise<Response> {
-    const auth = this.validateAuth(request);
+    const auth = await this.validateAuth(request);
     if (!auth.valid || !auth.tenantId) {
-      return new Response('Unauthorized', { status: 401, headers: this.getCORSHeaders() });
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
     const tenantId = auth.tenantId;
 
@@ -360,11 +407,17 @@ export class EdgeSQLGateway {
     try {
       raw = await request.text();
     } catch {
-      return new Response('Invalid body', { status: 400, headers: this.getCORSHeaders() });
+      return new Response('Invalid body', {
+        status: 400,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
     const bodyBytes = new TextEncoder().encode(raw).length;
     if (bodyBytes > MAX_BYTES) {
-      return new Response('Payload too large', { status: 413, headers: this.getCORSHeaders() });
+      return new Response('Payload too large', {
+        status: 413,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
 
     type BatchItem = { sql: string; params?: unknown[] };
@@ -372,7 +425,10 @@ export class EdgeSQLGateway {
     try {
       body = (raw ? JSON.parse(raw) : {}) as { batch?: BatchItem[] };
     } catch {
-      return new Response('Invalid JSON', { status: 400, headers: this.getCORSHeaders() });
+      return new Response('Invalid JSON', {
+        status: 400,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
 
     const items = Array.isArray(body.batch) ? body.batch : [];
@@ -387,7 +443,7 @@ export class EdgeSQLGateway {
     if (items.length > MAX_OPS) {
       return new Response('Too many operations in batch', {
         status: 413,
-        headers: this.getCORSHeaders(),
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
       });
     }
 
@@ -400,7 +456,11 @@ export class EdgeSQLGateway {
         const cached = await this._env.APP_CACHE.get(cacheKey, 'text');
         if (cached) {
           return new Response(cached, {
-            headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+            headers: {
+              'Content-Type': 'application/json',
+              ...this.getCORSHeaders(),
+              ...this.getSecurityHeaders(),
+            },
           });
         }
       } catch {
@@ -463,7 +523,11 @@ export class EdgeSQLGateway {
       if (!payload.success) {
         return new Response(JSON.stringify({ success: false, error: 'Batch failed' }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.getCORSHeaders(),
+            ...this.getSecurityHeaders(),
+          },
         });
       }
       totalRowsAffected += payload.rowsAffected;
@@ -495,57 +559,43 @@ export class EdgeSQLGateway {
     }
 
     return new Response(responseBody, {
-      headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getCORSHeaders(),
+        ...this.getSecurityHeaders(),
+      },
     });
   }
 
   /**
    * Validate authentication token and extract tenant information
    */
-  private validateAuth(request: Request): {
+  private async validateAuth(request: Request): Promise<{
     valid: boolean;
     tenantId?: string;
     permissions?: string[];
-  } {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return { valid: false };
-    }
-
-    const token = authHeader.substring(7);
-
-    // For testing purposes, accept 'test' token or tenant tokens
-    if (token === 'test' || token.startsWith('tenant')) {
-      return {
-        valid: true,
-        tenantId: token === 'test' ? 'test' : token,
-        permissions: ['admin', 'read', 'write'],
-      };
-    }
-
+    userId?: string;
+  }> {
     try {
-      // Verify JWT token
-      const payload = this.verifyJWT(token);
-      if (!payload) {
+      const cfToken = request.headers.get('cf-access-jwt-assertion');
+      const bearer = request.headers.get('Authorization');
+      const token = cfToken || (bearer?.startsWith('Bearer ') ? bearer.substring(7) : undefined);
+      if (!token) {
         return { valid: false };
       }
 
-      // Extract tenant information from JWT claims
-      const tenantId = payload['tenant_id'] || payload['sub'] || payload['tenantId'];
-      if (!tenantId) {
-        return { valid: false };
-      }
-
-      // Extract permissions from JWT claims
-      const permissions = payload['permissions'] || payload['roles'] || ['read'];
-
-      return {
+      const ctx = await this.authService.validateToken(token);
+      const result: { valid: true; tenantId: string; permissions: string[]; userId?: string } = {
         valid: true,
-        tenantId: String(tenantId),
-        permissions: Array.isArray(permissions) ? permissions : [String(permissions)],
+        tenantId: ctx.tenantId,
+        permissions: ctx.permissions,
       };
-    } catch (error) {
-      this.log('error', 'JWT validation failed', { error: (error as Error).message });
+      if (typeof ctx.userId === 'string') {
+        result.userId = ctx.userId;
+      }
+      return result;
+    } catch (e) {
+      this.log('warn', 'Auth validation error', { error: (e as Error).message });
       return { valid: false };
     }
   }
@@ -553,38 +603,7 @@ export class EdgeSQLGateway {
   /**
    * Verify JWT token and extract payload
    */
-  private verifyJWT(token: string): Record<string, unknown> | null {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid JWT format');
-      }
-
-      const payloadB64 = parts[1];
-      if (!payloadB64) {
-        throw new Error('Invalid JWT payload');
-      }
-
-      // Decode payload (no signature verification for now - in production use proper JWT library)
-      const payloadJson = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
-      const payload = JSON.parse(payloadJson) as Record<string, unknown>;
-
-      // Basic validation
-      const now = Math.floor(Date.now() / 1000);
-      if (typeof payload['exp'] === 'number' && payload['exp'] < now) {
-        throw new Error('Token expired');
-      }
-
-      if (typeof payload['nbf'] === 'number' && payload['nbf'] > now) {
-        throw new Error('Token not yet valid');
-      }
-
-      return payload;
-    } catch (error) {
-      this.log('error', 'JWT verification failed', { error: (error as Error).message });
-      return null;
-    }
-  }
+  // verifyJWT removed; AuthService handles token verification.
 
   /**
    * Parse incoming request into SQL query structure
@@ -949,7 +968,7 @@ export class EdgeSQLGateway {
   private handleCORS(): Response {
     return new Response(null, {
       status: 204,
-      headers: this.getCORSHeaders(),
+      headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
     });
   }
 
@@ -987,6 +1006,70 @@ export class EdgeSQLGateway {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Session-Id, X-Transaction-Id',
       'Access-Control-Max-Age': '86400',
     };
+  }
+
+  private getSecurityHeaders(): Record<string, string> {
+    return {
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    };
+  }
+
+  private enforceNetworkSecurity(request: Request): {
+    allowed: boolean;
+    status?: number;
+    reason?: string;
+  } {
+    try {
+      const e = this._env as unknown as Record<string, string>;
+      const url = new URL(request.url);
+      if ((e['ENFORCE_HTTPS'] || '').toString() === 'true' && url.protocol !== 'https:') {
+        return { allowed: false, status: 400, reason: 'HTTPS required' };
+      }
+
+      const cf = (request as Request & { cf?: { country?: string } }).cf;
+      const country = cf?.country;
+      const allowCountries = (e['ALLOW_COUNTRIES'] || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const blockCountries = (e['BLOCK_COUNTRIES'] || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (allowCountries.length && country && !allowCountries.includes(country)) {
+        return { allowed: false, status: 451, reason: 'Country not allowed' };
+      }
+      if (blockCountries.length && country && blockCountries.includes(country)) {
+        return { allowed: false, status: 403, reason: 'Country blocked' };
+      }
+
+      const ip =
+        request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Forwarded-For') ||
+        undefined;
+      const allowIPs = (e['ALLOW_IPS'] || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const blockIPs = (e['BLOCK_IPS'] || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (allowIPs.length && ip && !allowIPs.includes(ip)) {
+        return { allowed: false, status: 403, reason: 'IP not allowed' };
+      }
+      if (blockIPs.length && ip && blockIPs.includes(ip)) {
+        return { allowed: false, status: 403, reason: 'IP blocked' };
+      }
+
+      return { allowed: true };
+    } catch {
+      return { allowed: true };
+    }
   }
 
   /**
@@ -1093,7 +1176,7 @@ export class EdgeSQLGateway {
     };
 
     return new Response(JSON.stringify(health), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.getSecurityHeaders() },
     });
   }
 
@@ -1118,7 +1201,7 @@ export class EdgeSQLGateway {
     };
 
     return new Response(JSON.stringify(metrics), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.getSecurityHeaders() },
     });
   }
 
@@ -1133,8 +1216,12 @@ export class EdgeSQLGateway {
       );
     }
 
-    const headers = { 'Content-Type': 'application/json', ...this.getCORSHeaders() };
-    const auth = this.validateAuth(request);
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.getCORSHeaders(),
+      ...this.getSecurityHeaders(),
+    };
+    const auth = await this.validateAuth(request);
     if (
       !auth.valid ||
       !auth.permissions?.some((p: unknown) => String(p).toLowerCase().includes('admin'))
@@ -1252,9 +1339,12 @@ export class EdgeSQLGateway {
    * - Basic RBAC gate: requires Authorization present and valid tenant
    */
   public async handleAdminGraphQL(request: Request): Promise<Response> {
-    const auth = this.validateAuth(request);
+    const auth = await this.validateAuth(request);
     if (!auth.valid || !auth.tenantId) {
-      return new Response('Unauthorized', { status: 401, headers: this.getCORSHeaders() });
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
 
     // Only allow admin tenants/roles. For now require a role claim containing 'admin'.
@@ -1262,17 +1352,26 @@ export class EdgeSQLGateway {
       Array.isArray(auth.permissions) &&
       auth.permissions.some((r) => String(r).toLowerCase().includes('admin'));
     if (!hasAdmin) {
-      return new Response('Forbidden', { status: 403, headers: this.getCORSHeaders() });
+      return new Response('Forbidden', {
+        status: 403,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
 
     let body: { query?: string; variables?: Record<string, unknown> } = {};
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return new Response('Invalid JSON', { status: 400, headers: this.getCORSHeaders() });
+      return new Response('Invalid JSON', {
+        status: 400,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
     if (!body.query || typeof body.query !== 'string') {
-      return new Response('Missing query', { status: 400, headers: this.getCORSHeaders() });
+      return new Response('Missing query', {
+        status: 400,
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
+      });
     }
 
     // TTL cache key (hash query+vars)
@@ -1304,7 +1403,7 @@ export class EdgeSQLGateway {
     if (!token) {
       return new Response('Upstream token not configured', {
         status: 500,
-        headers: this.getCORSHeaders(),
+        headers: { ...this.getCORSHeaders(), ...this.getSecurityHeaders() },
       });
     }
 
@@ -1334,7 +1433,11 @@ export class EdgeSQLGateway {
 
     return new Response(text, {
       status: upstreamRes.status,
-      headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getCORSHeaders(),
+        ...this.getSecurityHeaders(),
+      },
     });
   }
 }

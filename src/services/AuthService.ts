@@ -18,16 +18,39 @@ interface JwtClaims {
 }
 
 /**
+ * Cloudflare Access JWT claims structure
+ */
+interface CloudflareAccessClaims {
+  aud: string[]; // Application Audience (AUD) tags
+  email: string;
+  exp: number;
+  iat: number;
+  iss: string; // https://<team-name>.cloudflareaccess.com
+  nonce?: string;
+  sub: string; // User ID
+  country?: string;
+  custom?: Record<string, unknown>; // Custom claims
+  groups?: string[]; // SAML/OIDC groups
+  identity_nonce?: string;
+  service_token_id?: string;
+  service_token_status?: boolean;
+}
+
+/**
  * Authentication token validation system for Edge SQL
  * Supports JWT tokens with tenant isolation and role-based access control
+ * Enhanced with Cloudflare Zero Trust integration
  */
 export class AuthService extends BaseService {
+  private readonly cfAccessIssuerPattern = /^https:\/\/[a-zA-Z0-9-]+\.cloudflareaccess\.com$/;
+
   constructor(env: CloudflareEnvironment) {
     super(env);
   }
 
   /**
    * Validate JWT token and extract authentication context
+   * Supports both custom JWT and Cloudflare Access tokens
    */
   async validateToken(token: string): Promise<AuthContext> {
     try {
@@ -44,20 +67,22 @@ export class AuthService extends BaseService {
         throw new EdgeSQLError('Invalid JWT format', 'AUTH_INVALID_JWT');
       }
 
-      const [header, payload, signature] = tokenParts;
+      const [header, payload, _signature] = tokenParts;
 
-      // Verify signature (placeholder - in production use proper JWT library)
-      await this.verifyTokenSignature(header!, payload!, signature!);
+      // Decode header to get algorithm
+      const decodedHeader = JSON.parse(this.decodeBase64Url(header!));
+      const algorithm = decodedHeader.alg;
 
-      // Decode payload
+      // Decode payload to determine token type
       const decodedPayload = this.decodeBase64Url(payload!);
-      const claims = JSON.parse(decodedPayload) as JwtClaims;
+      const claims = JSON.parse(decodedPayload) as JwtClaims & CloudflareAccessClaims;
 
-      // Validate token expiration
-      this.validateTokenExpiration(claims);
-
-      // Extract authentication context
-      return await this.extractAuthContext(claims, cleanToken);
+      // Determine token type and validate accordingly
+      if (this.isCloudflareAccessToken(claims)) {
+        return await this.validateCloudflareAccessToken(cleanToken, claims, algorithm);
+      } else {
+        return await this.validateCustomToken(cleanToken, claims, algorithm);
+      }
     } catch (error) {
       if (error instanceof EdgeSQLError) {
         throw error;
@@ -69,21 +94,271 @@ export class AuthService extends BaseService {
   }
 
   /**
-   * Verify JWT token signature
+   * Check if token is a Cloudflare Access token
    */
-  private async verifyTokenSignature(
-    header: string,
-    payload: string,
-    signature: string
+  private isCloudflareAccessToken(claims: JwtClaims & CloudflareAccessClaims): boolean {
+    return Boolean(
+      claims.iss &&
+        this.cfAccessIssuerPattern.test(claims.iss) &&
+        claims.aud &&
+        Array.isArray(claims.aud) &&
+        claims.email &&
+        claims.sub
+    );
+  }
+
+  /**
+   * Validate Cloudflare Access token
+   */
+  private async validateCloudflareAccessToken(
+    token: string,
+    claims: CloudflareAccessClaims,
+    _algorithm: string
+  ): Promise<AuthContext> {
+    // Validate issuer
+    if (!this.cfAccessIssuerPattern.test(claims.iss)) {
+      throw new EdgeSQLError('Invalid Cloudflare Access issuer', 'AUTH_INVALID_ISSUER');
+    }
+
+    // Validate audience (application AUD tag)
+    const expectedAud = this.env.CLOUDFLARE_ACCESS_AUD;
+    if (expectedAud && !claims.aud.includes(expectedAud)) {
+      throw new EdgeSQLError(
+        'Invalid audience for Cloudflare Access token',
+        'AUTH_INVALID_AUDIENCE'
+      );
+    }
+
+    // Validate expiration
+    this.validateTokenExpiration(claims as unknown as JwtClaims);
+
+    // Verify signature using Cloudflare's public key
+    await this.verifyCloudflareAccessSignature(token, claims);
+
+    // Extract authentication context from Cloudflare Access claims
+    return await this.extractCloudflareAccessContext(claims, token);
+  }
+
+  /**
+   * Validate custom JWT token
+   */
+  private async validateCustomToken(
+    token: string,
+    claims: JwtClaims,
+    algorithm: string
+  ): Promise<AuthContext> {
+    // Validate algorithm
+    if (algorithm !== 'HS256' && algorithm !== 'RS256') {
+      throw new EdgeSQLError('Unsupported algorithm', 'AUTH_UNSUPPORTED_ALG');
+    }
+
+    // Validate expiration
+    this.validateTokenExpiration(claims);
+
+    // Verify signature
+    if (algorithm === 'HS256') {
+      await this.verifyHmacSignature(token, claims);
+    } else {
+      await this.verifyRsaSignature(token, claims);
+    }
+
+    // Extract authentication context
+    return await this.extractAuthContext(claims, token);
+  }
+
+  /**
+   * Verify Cloudflare Access token signature
+   */
+  private async verifyCloudflareAccessSignature(
+    token: string,
+    claims: CloudflareAccessClaims
   ): Promise<void> {
     try {
-      // Decode header to get algorithm
-      const decodedHeader = JSON.parse(this.decodeBase64Url(header));
+      // Fetch Cloudflare's public key for the team
+      const publicKey = await this.fetchCloudflarePublicKey(claims.iss);
 
-      if (decodedHeader.alg !== 'HS256') {
-        throw new EdgeSQLError('Unsupported algorithm', 'AUTH_UNSUPPORTED_ALG');
+      // Import the public key
+      const key = await crypto.subtle.importKey(
+        'jwk',
+        publicKey,
+        {
+          name: 'RSASSA-PKCS1-v1_5',
+          hash: 'SHA-256',
+        },
+        false,
+        ['verify']
+      );
+
+      // Verify the signature
+      const encoder = new TextEncoder();
+      const signatureData = encoder.encode(`${token.split('.')[0]}.${token.split('.')[1]}`);
+      const signature = this.decodeBase64Url(token.split('.')[2]!);
+
+      const signatureArray = new Uint8Array(signature.length);
+      for (let i = 0; i < signature.length; i++) {
+        signatureArray[i] = signature.charCodeAt(i);
       }
 
+      const isValid = await crypto.subtle.verify(
+        'RSASSA-PKCS1-v1_5',
+        key,
+        signatureArray,
+        signatureData
+      );
+
+      if (!isValid) {
+        throw new EdgeSQLError(
+          'Invalid Cloudflare Access token signature',
+          'AUTH_INVALID_SIGNATURE'
+        );
+      }
+    } catch (error) {
+      if (error instanceof EdgeSQLError) {
+        throw error;
+      }
+      throw new EdgeSQLError(
+        'Cloudflare Access signature verification failed',
+        'AUTH_SIGNATURE_FAILED'
+      );
+    }
+  }
+
+  /**
+   * Fetch Cloudflare public key for token verification
+   */
+  private async fetchCloudflarePublicKey(issuer: string): Promise<JsonWebKey> {
+    // Extract team name from issuer
+    const teamMatch = issuer.match(/^https:\/\/([a-zA-Z0-9-]+)\.cloudflareaccess\.com$/);
+    if (!teamMatch) {
+      throw new EdgeSQLError('Invalid Cloudflare Access issuer format', 'AUTH_INVALID_ISSUER');
+    }
+
+    const teamName = teamMatch[1];
+    const certsUrl = `https://${teamName}.cloudflareaccess.com/cdn-cgi/access/certs`;
+
+    try {
+      const response = await fetch(certsUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch certificates: ${response.status}`);
+      }
+
+      const certs = (await response.json()) as { keys: JsonWebKey[] };
+
+      // For simplicity, return the first key (in production, match by 'kid' claim)
+      if (!certs.keys || certs.keys.length === 0) {
+        throw new Error('No public keys available');
+      }
+
+      return certs.keys[0]!;
+    } catch (error) {
+      this.log('error', 'Failed to fetch Cloudflare public key', {
+        error: (error as Error).message,
+      });
+      throw new EdgeSQLError('Unable to verify Cloudflare Access token', 'AUTH_CERT_FETCH_FAILED');
+    }
+  }
+
+  /**
+   * Extract authentication context from Cloudflare Access claims
+   */
+  private async extractCloudflareAccessContext(
+    claims: CloudflareAccessClaims,
+    token: string
+  ): Promise<AuthContext> {
+    // Extract tenant ID from custom claims or email domain
+    const tenantId = this.extractTenantFromCloudflareClaims(claims);
+
+    // Extract user ID
+    const userId = claims.sub;
+
+    // Map groups to permissions/roles
+    const permissions = this.mapCloudflareGroupsToPermissions(claims.groups || []);
+
+    // Create token hash for security
+    const tokenHash = await this.hashString(token);
+
+    const authContext: AuthContext & {
+      cfAccess?: { email: string; country?: string; groups?: string[]; serviceToken: boolean };
+    } = {
+      tenantId,
+      permissions,
+      tokenHash,
+      userId,
+    };
+
+    // Add additional metadata for Cloudflare Access
+    const cfMeta: { email: string; country?: string; groups?: string[]; serviceToken: boolean } = {
+      email: claims.email,
+      serviceToken: claims.service_token_id ? true : false,
+    };
+    if (claims.country) {
+      cfMeta.country = claims.country;
+    }
+    if (claims.groups) {
+      cfMeta.groups = claims.groups;
+    }
+    authContext.cfAccess = cfMeta;
+
+    return authContext;
+  }
+
+  /**
+   * Extract tenant ID from Cloudflare Access claims
+   */
+  private extractTenantFromCloudflareClaims(claims: CloudflareAccessClaims): string {
+    // Try custom claims first
+    if (claims.custom?.['tenant_id']) {
+      return String(claims.custom['tenant_id']);
+    }
+
+    // Fallback to email domain
+    const emailDomain = claims.email.split('@')[1];
+    if (emailDomain) {
+      return emailDomain.replace(/\./g, '-');
+    }
+
+    // Final fallback
+    throw new EdgeSQLError(
+      'Unable to determine tenant ID from Cloudflare Access token',
+      'AUTH_MISSING_TENANT'
+    );
+  }
+
+  /**
+   * Map Cloudflare groups to permissions
+   */
+  private mapCloudflareGroupsToPermissions(groups: string[]): string[] {
+    const permissions: string[] = [];
+
+    // Map common group names to permissions
+    const groupMappings: Record<string, string[]> = {
+      admin: ['admin', 'read', 'write', 'delete'],
+      developer: ['read', 'write'],
+      analyst: ['read'],
+      auditor: ['read_audit_logs'],
+    };
+
+    groups.forEach((group) => {
+      const groupLower = group.toLowerCase();
+      const mappedPermissions = groupMappings[groupLower];
+      if (mappedPermissions) {
+        permissions.push(...mappedPermissions);
+      }
+    });
+
+    // Ensure at least basic read permission
+    if (permissions.length === 0) {
+      permissions.push('read');
+    }
+
+    return [...new Set(permissions)]; // Remove duplicates
+  }
+
+  /**
+   * Verify HMAC signature for custom tokens
+   */
+  private async verifyHmacSignature(token: string, _claims: JwtClaims): Promise<void> {
+    try {
       // Get signing secret from environment
       const secret = this.env.JWT_SECRET;
       if (!secret) {
@@ -101,12 +376,12 @@ export class AuthService extends BaseService {
         ['sign', 'verify']
       );
 
-      const signatureData = encoder.encode(`${header}.${payload}`);
+      const signatureData = encoder.encode(`${token.split('.')[0]}.${token.split('.')[1]}`);
       const expectedSignature = await crypto.subtle.sign('HMAC', key, signatureData);
       const expectedSignatureBase64 = this.encodeBase64Url(new Uint8Array(expectedSignature));
 
-      // Compare signatures
-      if (signature !== expectedSignatureBase64) {
+      const providedSignature = token.split('.')[2];
+      if (providedSignature !== expectedSignatureBase64) {
         throw new EdgeSQLError('Invalid token signature', 'AUTH_INVALID_SIGNATURE');
       }
     } catch (error) {
@@ -115,6 +390,18 @@ export class AuthService extends BaseService {
       }
       throw new EdgeSQLError('Signature verification failed', 'AUTH_SIGNATURE_FAILED');
     }
+  }
+
+  /**
+   * Verify RSA signature for custom tokens
+   */
+  private async verifyRsaSignature(_token: string, _claims: JwtClaims): Promise<void> {
+    // For RSA, we'd need the public key from JWKS endpoint
+    // This is a placeholder for RSA signature verification
+    throw new EdgeSQLError(
+      'RSA signature verification not implemented',
+      'AUTH_RSA_NOT_IMPLEMENTED'
+    );
   }
 
   /**
@@ -258,5 +545,45 @@ export class AuthService extends BaseService {
       accessToken,
       expiresIn: 3600, // 1 hour
     };
+  }
+
+  /**
+   * Validate API token for service-to-service authentication
+   */
+  async validateApiToken(token: string): Promise<AuthContext> {
+    try {
+      // Check if token matches configured API tokens
+      const validTokens = (this.env.API_TOKENS || '').split(',').map((t: string) => t.trim());
+
+      if (!validTokens.includes(token)) {
+        throw new EdgeSQLError('Invalid API token', 'AUTH_INVALID_API_TOKEN');
+      }
+
+      // Create service authentication context
+      const tokenHash = await this.hashString(token);
+
+      return {
+        tenantId: 'service', // Service tenant for API operations
+        permissions: ['admin', 'read', 'write', 'delete'],
+        tokenHash,
+        userId: 'api-service',
+      };
+    } catch (error) {
+      if (error instanceof EdgeSQLError) {
+        throw error;
+      }
+      throw new EdgeSQLError('API token validation failed', 'AUTH_API_TOKEN_FAILED');
+    }
+  }
+
+  /**
+   * Hash string for security purposes
+   */
+  protected override async hashString(input: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = new Uint8Array(hashBuffer);
+    return Array.from(hashArray, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 }

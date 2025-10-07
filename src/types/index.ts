@@ -14,6 +14,9 @@ export interface Env extends CloudflareEnvironment {
   // D1 database for portable mirror
   PORTABLE_DB: D1Database;
 
+  // R2 bucket for audit logs
+  AUDIT_LOGS_BUCKET?: R2Bucket;
+
   // Environment variables
   ENVIRONMENT: string;
   LOG_LEVEL: string;
@@ -24,6 +27,11 @@ export interface Env extends CloudflareEnvironment {
   DEFAULT_CACHE_SWR?: string;
   SHARD_COUNT?: string;
   JWT_SECRET?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCESS_AUD?: string;
+  API_TOKENS?: string;
+  AUDIT_RETENTION_DAYS?: string;
 }
 
 // SQL query types
@@ -200,6 +208,9 @@ export interface CloudflareEnvironment {
   DB_EVENTS: Queue;
   SHARD: DurableObjectNamespace;
   PORTABLE_DB: D1Database;
+  AUDIT_LOGS_BUCKET?: R2Bucket;
+  // Analytics Engine dataset binding for audit logs
+  AUDIT_LOGS?: AnalyticsEngineDataset;
   ENVIRONMENT: string;
   LOG_LEVEL: string;
   MAX_SHARD_SIZE_GB: string;
@@ -211,6 +222,19 @@ export interface CloudflareEnvironment {
   JWT_SECRET?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCESS_AUD?: string;
+  CLOUDFLARE_GRAPHQL_ENDPOINT?: string;
+  API_TOKENS?: string;
+  AUDIT_RETENTION_DAYS?: string;
+  // Network security toggles
+  ENFORCE_HTTPS?: string;
+  ALLOW_COUNTRIES?: string;
+  BLOCK_COUNTRIES?: string;
+  ALLOW_IPS?: string;
+  BLOCK_IPS?: string;
+  // Optional encryption flags
+  DATA_ENCRYPTION_ENABLED?: string;
+  DATA_ENCRYPTION_KEY?: string;
 }
 
 export interface WorkerRequest {

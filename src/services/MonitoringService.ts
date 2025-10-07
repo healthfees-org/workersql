@@ -11,13 +11,13 @@ import { CloudflareEnvironment } from '../types';
  */
 export class MonitoringService {
   private env: CloudflareEnvironment;
-  private accountId: string;
-  private apiToken: string;
+  private accountId: string | undefined;
+  private apiToken: string | undefined;
 
   constructor(env: CloudflareEnvironment) {
     this.env = env;
-    this.accountId = env.CLOUDFLARE_ACCOUNT_ID || '';
-    this.apiToken = env.CLOUDFLARE_API_TOKEN || '';
+    this.accountId = env.CLOUDFLARE_ACCOUNT_ID || undefined;
+    this.apiToken = env.CLOUDFLARE_API_TOKEN || undefined;
   }
 
   /**
@@ -301,6 +301,9 @@ export class MonitoringService {
     query: string,
     variables: Record<string, unknown>
   ): Promise<GraphQLResponse> {
+    if (!this.apiToken) {
+      throw new Error('GraphQL query failed: missing API token');
+    }
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
       method: 'POST',
       headers: {

@@ -483,6 +483,17 @@ export async function queueConsumer(
   // Second pass: mark processed and ack/retry accordingly
   for (const { msg, alreadyProcessed } of processed) {
     try {
+      // Validate the event body; retry if invalid/malformed
+      const event = msg.body as DatabaseEvent | undefined;
+      const isValidType =
+        event &&
+        typeof event.type === 'string' &&
+        ['invalidate', 'prewarm', 'd1_sync'].includes(event.type);
+      const hasRequiredFields = !!(event && event.shardId && event.timestamp);
+      if (!isValidType || !hasRequiredFields) {
+        throw new Error('Invalid or malformed event body');
+      }
+
       if (!alreadyProcessed) {
         // Mark idempotent processed marker with short TTL (10 minutes)
         const idKey = `${idemPrefix}${msg.id}`;

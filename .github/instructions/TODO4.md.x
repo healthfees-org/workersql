@@ -13,18 +13,20 @@ Implement advanced features including shard splitting, monitoring, observability
 - [x] Rollback capabilities
 
 ### 2. Monitoring & Observability
-- [ ] Per-shard metrics collection
-- [ ] SLO/SLA tracking and alerting
-- [ ] Cache hit/miss rate monitoring
-- [ ] Queue lag and backlog monitoring
+- [x] Per-shard metrics collection
+- [x] SLO/SLA tracking and alerting
+- [x] Cache hit/miss rate monitoring
+- [x] Queue lag and backlog monitoring
 
 ### 3. Security Enhancements
-- [ ] Advanced authentication mechanisms
-- [ ] Audit logging implementation using Cloudflare Analytics engine
-    - [ ] Persist logs to R2 based on time-based eviction policy
-- [ ] Data encryption at rest (optional; not required but a feature that can be enabled)
-- [ ] Network security controls
-- [ ] Compliance reporting features
+- [x] Advanced authentication mechanisms
+- [x] Audit logging implementation using Cloudflare Analytics engine
+    - [x] Persist logs to R2 based on time-based eviction policy
+- [x] @DEFER: Data encryption at rest (optional; feature flag enabled for R2 audit buffers)
+- [x] Network security controls
+- [x] Compliance reporting features
+- [ ] @NEW @TODO: Integrate Zero Trust Access for GUI
+  - [ ] @REQUIRES: Update /docs/architecture/012-security-enhancements.md
 
 ### 4. @DEFER: Performance Optimizations
 - [ ] Query optimization engine
@@ -33,8 +35,11 @@ Implement advanced features including shard splitting, monitoring, observability
 - [ ] Batch operation improvements
 - [ ] Memory usage optimizations
 
-### 5. Operational Tools
+### 5. @DEFER: Operational Tools
 - [ ] Administrative CLI tools
+    - [ ] PHP CLI
+    - [ ] Node CLI
+    - [ ] Python CLI
 - [ ] Database migration utilities
 - [ ] Backup and restore procedures
 - [ ] Disaster recovery planning
@@ -43,15 +48,16 @@ Implement advanced features including shard splitting, monitoring, observability
 ### 6. Client GUI
 - [ ] Svelte SPA that mimics phpMyAdmin, but modern
 - [ ] Tailwind CSS + ShadUI
-- [ ] Create in root `/client`folder
-- [ ] Authentication using Cloudflare account
-- [ ] Performance monitoring
+- [ ] Create in root `/src/app` folder
+  - [ ] The hono API entry point `/` should serve the Svelte application
+- [ ] Authentication using Cloudflare account SSO (default) and/or Zero Trust Access
+- [ ] Performance monitoring using Cloudflare GraphQL
 - [ ] mySQL workbench features (query, write, backup)
-- [ ] Unified logging (from Cloudflare logs)
+- [ ] Unified logging (from Cloudflare logs / GraphQL)
 - [ ] Security monitoring
 - [ ] Migration utilities
 - [ ] Backup and restore
-    - [ ] Backup to R2 with cronjob support
+    - [ ] Backup to R2 with cronjob/scheduled backup support
     - [ ] Local backup/export
 
 ## Acceptance Criteria

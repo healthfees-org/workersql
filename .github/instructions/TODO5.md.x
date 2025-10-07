@@ -25,12 +25,13 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 - [ ] Materialized view support
 - [ ] Computed columns
 - [ ] Advanced JSON path operations
+- [ ] @DEFER: Cloudflare AI Search integration (previously: AutoRAG)
 
 ### 4. Ecosystem Integrations
 - [ ] ORM compatibility (Drizzle, SQLModel/SQLAlchey, Prisma, TypeORM, etc.)
 - [ ] Observability platform integrations
 - [ ] CI/CD pipeline templates
-- [ ] Cloud deployment automation
+- [ ] Cloud deployment automation (Terraform)
 
 ### 5. Developer Tools & Utilities
 - [ ] Database schema migration tools
@@ -38,6 +39,7 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 - [ ] Load testing frameworks
 - [ ] Development environment automation
 - [ ] Documentation generators
+- [ ] MCP Server with oAuth
 
 ## Acceptance Criteria
 - [ ] D1 mirror maintains data consistency
