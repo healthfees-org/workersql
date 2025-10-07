@@ -13,7 +13,8 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 - [ ] Cross-shard reporting features
 
 ### 2. JSON & GeoJSON Support - ADR 17
-- [ ] SQLite JSON1 extension integration
+- [ ] GeoJSON integration using @types/geojson
+- [ ] Full TypeScript integration; does not rely on D1/sqlite
 - [ ] GeoJSON storage and indexing
 - [ ] Geospatial query capabilities
 - [ ] H3/S2 cell indexing
