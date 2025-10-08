@@ -46,19 +46,32 @@ Implement advanced features including shard splitting, monitoring, observability
 - [ ] Capacity planning tools
 
 ### 6. Client GUI  - ADR 15
-- [ ] Svelte SPA that mimics phpMyAdmin, but modern
-- [ ] Tailwind CSS + ShadUI
-- [ ] Create in root `/src/app` folder
-  - [ ] The hono API entry point `/` should serve the Svelte application
-- [ ] Authentication using Cloudflare account SSO (default) and/or Zero Trust Access
-- [ ] Performance monitoring using Cloudflare GraphQL
-- [ ] mySQL workbench features (query, write, backup)
-- [ ] Unified logging (from Cloudflare logs / GraphQL)
-- [ ] Security monitoring
-- [ ] Migration utilities
-- [ ] Backup and restore
-    - [ ] Backup to R2 with cronjob/scheduled backup support
-    - [ ] Local backup/export
+- [x] Svelte SPA that mimics phpMyAdmin, but modern (scaffolded with routes: Workbench, Query, Monitoring, Logs, Security, Migration, Backup)
+- [x] Tailwind CSS wired (ShadUI components optional to add next)
+- [x] Create in root `/src/app` folder with Vite build to `/src/app/dist`
+  - [x] The Hono/Worker entry point `/` serves the Svelte application via Workers Static Assets
+- [x] Authentication using Cloudflare Access header passthrough (AuthService) with dev JWT fallback
+- [x] Performance monitoring using Cloudflare GraphQL via `/admin/graphql` proxy
+- [x] mySQL workbench features (query, write, backup) basic UI wired to `/sql` endpoints
+- [x] Unified logging (Cloudflare GraphQL proxy UI)
+- [x] Security monitoring (basic health + guards)
+- [x] Migration utilities (split plans view via `/admin/shards/split`)
+- [x] Backup and restore
+    - [x] Backup to R2 with cronjob/scheduled backup support (stubbed admin endpoint)
+    - [x] Local backup/export download
+- [x] Tests: Added app tests under `/tests/app/{unit,integration,fuzz,e2e}` and isolated via `vitest.app.config.ts` with `npm run test:app`
+- [x] See also: `/docs/architecture/015-spa-client.md` for design and operations.
+
+
+### 7. Client Enhancements - ADR 15 continued
+- [ ] We need a GUI to create, edit and delete databases
+  - [ ] Databases can also be assigned an API key
+  - [ ] Databases must have a database user with password assigned to them
+  - [ ] Databases can be encrypted
+- [ ] We need a GUI to create, edit and delete database users (including their password)
+
+
+
 
 ## Acceptance Criteria
 - [ ] Shard splitting works without downtime

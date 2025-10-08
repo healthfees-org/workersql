@@ -22,17 +22,38 @@ Implement extended features including D1 mirroring, JSON/GeoJSON support, analyt
 
 ### 3. Advanced SQL Features - ADR 18
 - [ ] Full-text search capabilities
+    -[ ] This functionality exists in Cloudflare D1 natively:
+        ```
+        CREATE VIRTUAL TABLE notes_fts USING fts5(
+            id,          -- The ID of the original notes row
+            title,       -- The title of the note
+            content,     -- The main content of the note
+            content="notes" -- Associate this FTS table with the 'notes' table
+        );
+        ```
 - [ ] Advanced indexing strategies
 - [ ] Materialized view support
+    ```
+    ## How to Emulate Materialized Views in D1
+     - Create a new table: in your D1 database to store the precomputed results.
+      - Write a query: to generate the data you want to materialize.
+      - Periodically execute: this query, inserting its results into the new table you created. This can be done using Cloudflare Workers or scheduled tasks.
+      - Query the new table: for faster access to the precomputed data.
+    ```
 - [ ] Computed columns
+    - [ ] Review URL and implement: https://developers.cloudflare.com/d1/reference/generated-columns/
 - [ ] Advanced JSON path operations
+    - [ ] Review URL and implement: https://developers.cloudflare.com/d1/sql-api/query-json/
 - [ ] @DEFER: Cloudflare AI Search integration (previously: AutoRAG)
 
 ### 4. Ecosystem Integrations - ADR 19
-- [ ] ORM compatibility (Drizzle, SQLModel/SQLAlchey, Prisma, TypeORM, etc.)
+- [ ] ORM compatibility in SDKs
+    - [ ] Node: DrizzleORM, Prisma, TypeORM
+    - [ ] Python: SQLModel/SQLAlchemy
+    - [ ] PHP: Laravel Eloquent ORM, Cake ORM, Doctrine ORM
 - [ ] Observability platform integrations
-- [ ] CI/CD pipeline templates
-- [ ] Cloud deployment automation (Terraform)
+    - [ ] Sentry.io
+    - [ ] Grafana
 
 ### 5. Developer Tools & Utilities - ADR 20
 - [ ] Database schema migration tools

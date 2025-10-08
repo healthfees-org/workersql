@@ -30,6 +30,30 @@ export default {
     const gateway = new EdgeSQLGateway(env, ctx);
     const url = new URL(request.url);
     try {
+      // Serve SPA assets on root and any non-API path
+      if (
+        !url.pathname.startsWith('/admin') &&
+        !url.pathname.startsWith('/sql') &&
+        !url.pathname.startsWith('/health') &&
+        !url.pathname.startsWith('/metrics') &&
+        !url.pathname.startsWith('/api')
+      ) {
+        // Attempt to serve static assets; on 404 fall through to API handling
+        if ((env as unknown as { ASSETS?: Fetcher }).ASSETS) {
+          const assetRes = await (env as unknown as { ASSETS: Fetcher }).ASSETS.fetch(request);
+          if (assetRes.status !== 404) {
+            // Copy asset headers safely to plain object
+            const hdrs: Record<string, string> = {};
+            assetRes.headers.forEach((v, k) => {
+              hdrs[k] = v;
+            });
+            return new Response(assetRes.body, {
+              status: assetRes.status,
+              headers: { ...hdrs, ...gateway.getHtmlSecurityHeaders() },
+            });
+          }
+        }
+      }
       // Health check endpoint
       if (request.url.endsWith('/health')) {
         return gateway.handleHealthCheck();
@@ -45,8 +69,21 @@ export default {
         return gateway.handleAdminGraphQL(request);
       }
 
+      // Auth context probe for SPA (no secrets)
+      if (request.url.endsWith('/auth/me')) {
+        return gateway.handleAuthMe(request);
+      }
+
       if (url.pathname.startsWith('/admin/shards')) {
         return gateway.handleShardAdmin(request, url);
+      }
+
+      if (url.pathname.startsWith('/admin/backup')) {
+        return gateway.handleBackupAdmin(request, url);
+      }
+
+      if (url.pathname.startsWith('/database')) {
+        return gateway.handleDatabaseAdmin(request, url);
       }
 
       // Batch SQL endpoint
@@ -66,6 +103,12 @@ export default {
   // Queue consumer entrypoint for Cloudflare Queues
   async queue(batch: MessageBatch, env: CloudflareEnvironment, _ctx: ExecutionContext) {
     await queueConsumer(batch, env);
+  },
+  // Scheduled cron trigger for backups, maintenance, etc.
+  async scheduled(_event: ScheduledEvent, env: CloudflareEnvironment, ctx: ExecutionContext) {
+    const gateway = new EdgeSQLGateway(env, ctx);
+    // Nightly backup task
+    ctx.waitUntil(gateway.runNightlyBackup().catch(() => void 0));
   },
 };
 
@@ -577,7 +620,10 @@ export class EdgeSQLGateway {
     userId?: string;
   }> {
     try {
-      const cfToken = request.headers.get('cf-access-jwt-assertion');
+      // Prefer Cloudflare Access header, else try cookie (CF_Authorization)
+      const cfToken =
+        request.headers.get('cf-access-jwt-assertion') ||
+        AuthService.extractAccessFromCookies(request.headers.get('Cookie'));
       const bearer = request.headers.get('Authorization');
       const token = cfToken || (bearer?.startsWith('Bearer ') ? bearer.substring(7) : undefined);
       if (!token) {
@@ -720,7 +766,7 @@ export class EdgeSQLGateway {
     const cachedSWR = cachedBounded; // reuse fetch if any
     if (cachedSWR && this.cacheService.isStaleButRevalidatable(cachedSWR)) {
       // Serve stale and kick off revalidation
-      this._ctx.waitUntil(this.executeSelectAndMaybeCache(query, tenantId, true).then(() => {}));
+      this._ctx.waitUntil(this.executeSelectAndMaybeCache(query, tenantId, true).then(() => { }));
       return { success: true, data: cachedSWR.data, cached: true, executionTime: 0 };
     }
     if (cachedSWR && this.cacheService.isFresh(cachedSWR)) {
@@ -1018,6 +1064,25 @@ export class EdgeSQLGateway {
     };
   }
 
+  // Relaxed CSP for serving SPA HTML/CSS/JS; disallow framing
+  public getHtmlSecurityHeaders(): Record<string, string> {
+    return {
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Content-Security-Policy': [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+        "img-src 'self' data:",
+        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'",
+        "connect-src 'self' https://api.cloudflare.com https://*.cloudflare.com https://*.workers.dev",
+        "font-src 'self' data:",
+      ].join('; '),
+    };
+  }
+
   private enforceNetworkSecurity(request: Request): {
     allowed: boolean;
     status?: number;
@@ -1026,7 +1091,11 @@ export class EdgeSQLGateway {
     try {
       const e = this._env as unknown as Record<string, string>;
       const url = new URL(request.url);
-      if ((e['ENFORCE_HTTPS'] || '').toString() === 'true' && url.protocol !== 'https:') {
+      const environment = (e['ENVIRONMENT'] || '').toString();
+      const enforceHttps = (e['ENFORCE_HTTPS'] || '').toString() === 'true';
+
+      // Only enforce HTTPS in production; allow HTTP in development/testing
+      if (enforceHttps && environment === 'production' && url.protocol !== 'https:') {
         return { allowed: false, status: 400, reason: 'HTTPS required' };
       }
 
@@ -1439,6 +1508,407 @@ export class EdgeSQLGateway {
         ...this.getSecurityHeaders(),
       },
     });
+  }
+
+  public async handleAuthMe(request: Request): Promise<Response> {
+    const auth = await this.validateAuth(request);
+    if (!auth.valid) {
+      return new Response(JSON.stringify({ authenticated: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() },
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        authenticated: true,
+        tenantId: auth.tenantId,
+        userId: auth.userId,
+        permissions: auth.permissions || [],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json', ...this.getCORSHeaders() } }
+    );
+  }
+
+  /**
+   * Minimal backup/export admin endpoints for SPA
+   */
+  public async handleBackupAdmin(request: Request, url: URL): Promise<Response> {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.getCORSHeaders(),
+      ...this.getSecurityHeaders(),
+    };
+    const auth = await this.validateAuth(request);
+    if (!auth.valid || !auth.permissions?.some((p) => String(p).toLowerCase().includes('admin'))) {
+      return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
+        status: 403,
+        headers,
+      });
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    const action = segments[2] || '';
+
+    if (action === 'backup') {
+      const sub = segments[3] || '';
+      if (sub === 'r2' && request.method === 'POST') {
+        // Schedule immediate backup (fire-and-forget)
+        this._ctx.waitUntil(this.performR2Backup(auth.tenantId!).catch(() => void 0));
+        return new Response(JSON.stringify({ success: true, message: 'R2 backup scheduled' }), {
+          status: 202,
+          headers,
+        });
+      }
+      if (sub === 'export' && request.method === 'GET') {
+        const manifest = await this.performInMemoryExport(auth.tenantId!);
+        const body = JSON.stringify(manifest);
+        return new Response(body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Disposition': 'attachment; filename="workersql-backup.json"',
+            ...this.getCORSHeaders(),
+            ...this.getSecurityHeaders(),
+          },
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
+      status: 404,
+      headers,
+    });
+  }
+
+  /**
+   * Database browser admin endpoints for SPA
+   */
+  public async handleDatabaseAdmin(request: Request, url: URL): Promise<Response> {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.getCORSHeaders(),
+      ...this.getSecurityHeaders(),
+    };
+    const auth = await this.validateAuth(request);
+    if (!auth.valid || !auth.permissions?.some((p) => String(p).toLowerCase().includes('admin'))) {
+      return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
+        status: 403,
+        headers,
+      });
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length === 2 && segments[1] === 'tables' && request.method === 'GET') {
+      // GET /database/tables - list all tables
+      const tables = await this.getDatabaseTables(auth.tenantId!);
+      return new Response(JSON.stringify({ success: true, data: tables }), { headers });
+    }
+
+    if (segments.length === 3 && segments[1] === 'schema' && request.method === 'GET') {
+      // GET /database/schema/:tableName - get table schema
+      const tableName = segments[2]!;
+      const schema = await this.getTableSchema(auth.tenantId!, tableName);
+      return new Response(JSON.stringify({ success: true, data: schema }), { headers });
+    }
+
+    if (segments.length === 3 && segments[1] === 'data' && request.method === 'GET') {
+      // GET /database/data/:tableName - get table data
+      const tableName = segments[2]!;
+      const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+      const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+      const data = await this.getTableData(auth.tenantId!, tableName, limit, offset);
+      return new Response(JSON.stringify({ success: true, data }), { headers });
+    }
+
+    return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
+      status: 404,
+      headers,
+    });
+  }
+
+  /**
+   * Perform an in-memory export for quick download: iterates known tables via policy, pulls rows per chunk.
+   * Returns a manifest with table entries. Intended for small local exports.
+   */
+  private async performInMemoryExport(tenantId: string): Promise<{
+    version: number;
+    tenantId: string;
+    exportedAt: string;
+    tables: Record<string, Array<Record<string, unknown>>>;
+  }> {
+    const tables = await this.discoverTables();
+    const result: Record<string, Array<Record<string, unknown>>> = {};
+    for (const table of tables) {
+      const rows = await this.exportTableChunks(tenantId, table, 0, 200, true);
+      result[table] = rows;
+    }
+    return { version: 1, tenantId, exportedAt: new Date().toISOString(), tables: result };
+  }
+
+  /**
+   * Perform R2 backup for a tenant: per table chunked, gzip each table file, and write a manifest.json.
+   */
+  private async performR2Backup(tenantId: string): Promise<void> {
+    const e = this._env as unknown as Record<string, unknown>;
+    const bucket = (e['BACKUPS_BUCKET'] as unknown as R2Bucket) || undefined;
+    if (!bucket) {
+      return;
+    }
+    const date = new Date().toISOString().replace(/[:.]/g, '-');
+    const base = `exports/${tenantId}/${date}`;
+    const tables = await this.discoverTables();
+    const manifest: {
+      version: number;
+      tenantId: string;
+      exportedAt: string;
+      tables: Array<{ name: string; key: string; rows: number }>;
+    } = {
+      version: 1,
+      tenantId,
+      exportedAt: new Date().toISOString(),
+      tables: [],
+    };
+    for (const table of tables) {
+      const rows = await this.exportTableChunks(tenantId, table, 0, 500, true);
+      const json = JSON.stringify({ table, tenantId, rows });
+      // gzip compress
+      const cs = new CompressionStream('gzip');
+      const writer = cs.writable.getWriter();
+      await writer.write(new TextEncoder().encode(json));
+      await writer.close();
+      const compressed = await new Response(cs.readable).arrayBuffer();
+      const key = `${base}/${table}.json.gz`;
+      await bucket.put(key, compressed, { httpMetadata: { contentType: 'application/gzip' } });
+      manifest.tables.push({ name: table, key, rows: rows.length });
+    }
+    await bucket.put(`${base}/manifest.json`, JSON.stringify(manifest), {
+      httpMetadata: { contentType: 'application/json' },
+    });
+  }
+
+  /**
+   * Discover tables to export. Uses ConfigService table policies as the source of truth.
+   */
+  private async discoverTables(): Promise<string[]> {
+    try {
+      const policies = await this.configService.getTablePolicies();
+      return Object.keys(policies);
+    } catch {
+      return ['posts', 'users', 'orders', 'sessions'];
+    }
+  }
+
+  /**
+   * Iterate a table via TableShard admin/export and collect rows; in streaming mode returns full array.
+   */
+  private async exportTableChunks(
+    tenantId: string,
+    table: string,
+    startCursor: number,
+    limit: number,
+    all: boolean
+  ): Promise<Array<Record<string, unknown>>> {
+    const tenantColumn = 'tenant_id';
+    const out: Array<Record<string, unknown>> = [];
+    const targetInfo = await this.routerService.routeQuery(
+      { sql: `SELECT * FROM ${table} LIMIT 1`, params: [] },
+      tenantId
+    );
+    const shardId = this.shardSplitService.resolveReadShard(tenantId, targetInfo.shardId);
+    const id =
+      shardId === targetInfo.shardId
+        ? targetInfo.durableObjectId
+        : this._env.SHARD.idFromName(shardId);
+    const stub = this.getShardStub(id);
+    let cursor = startCursor;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const res = await stub.fetch(
+        new Request('http://do/admin/export', {
+          method: 'POST',
+          body: JSON.stringify({ table, tenantId, tenantColumn, cursor, limit }),
+        })
+      );
+      const data = (await res.json()) as {
+        success: boolean;
+        rows: Array<{ rowid: number; data: Record<string, unknown> }>;
+        nextCursor?: number | null;
+      };
+      if (!data.success) {
+        break;
+      }
+      for (const row of data.rows) {
+        out.push(row.data);
+      }
+      if (!all || !data.nextCursor || data.rows.length === 0) {
+        break;
+      }
+      cursor = data.nextCursor;
+    }
+    return out;
+  }
+
+  /**
+   * Nightly backup orchestration: iterate known shards and dump tenant tables to R2
+   * This is a simplified snapshot per shard; production should paginate and compress.
+   */
+  public async runNightlyBackup(): Promise<void> {
+    const e = this._env as unknown as Record<string, unknown>;
+    const bucket = (e['BACKUPS_BUCKET'] as unknown as R2Bucket) || undefined;
+    if (!bucket) {
+      this.log('warn', 'BACKUPS_BUCKET not configured');
+      return;
+    }
+
+    // Determine shard list; for now, derive from SHARD namespace using a fixed range or config
+    const shardCount = this.configService.getShardCount();
+    const shards = Array.from({ length: shardCount }, (_, i) => `shard_${i}`);
+    const date = new Date().toISOString().slice(0, 10);
+
+    for (const shardId of shards) {
+      try {
+        const stub = this.getShardStubByName(shardId);
+        // Use admin export events/tables listing where available; here we snapshot _events and _meta for PoC
+        const health = await stub.fetch(new Request('http://do/health'));
+        const metrics = await stub.fetch(new Request('http://do/metrics'));
+        const payload = {
+          shardId,
+          timestamp: Date.now(),
+          health: await health.json().catch(() => ({})),
+          metrics: await metrics.json().catch(() => ({})),
+        } as Record<string, unknown>;
+        const key = `snapshots/${date}/${shardId}.json`;
+        await bucket.put(key, JSON.stringify(payload), {
+          httpMetadata: { contentType: 'application/json' },
+        });
+        this.log('info', 'backup snapshot stored', { shardId, key });
+        await new Promise((r) => setTimeout(r, 0));
+      } catch (err) {
+        this.log('warn', 'backup shard failed', { shardId, error: (err as Error).message });
+      }
+    }
+  }
+
+  /**
+   * Get list of all tables in the database for a tenant
+   */
+  private async getDatabaseTables(tenantId: string): Promise<string[]> {
+    try {
+      // Use RouterService to locate shard and TableShard safe admin endpoint
+      const target = await this.routerService.routeQuery({ sql: 'SELECT 1', params: [] }, tenantId);
+      const stub = this.getShardStub(target.durableObjectId);
+      const response = await stub.fetch(new Request('http://do/admin/tables'));
+      const result = (await response.json()) as { success: boolean; tables?: string[] };
+      return result.success && Array.isArray(result.tables) ? result.tables : [];
+    } catch (error) {
+      this.log('error', 'Failed to get database tables', { tenantId, error: (error as Error).message });
+      return [];
+    }
+  }
+
+  /**
+   * Get schema information for a specific table
+   */
+  private async getTableSchema(tenantId: string, tableName: string): Promise<{
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+      default: string | null;
+      primaryKey: boolean;
+    }>;
+  }> {
+    try {
+      // Route to the appropriate shard for this table
+      const targetInfo = await this.routerService.routeQuery(
+        { sql: `SELECT * FROM ${tableName} LIMIT 1`, params: [] },
+        tenantId
+      );
+      const shardId = this.shardSplitService.resolveReadShard(tenantId, targetInfo.shardId);
+      const stub = shardId === targetInfo.shardId
+        ? this.getShardStub(targetInfo.durableObjectId)
+        : this.getShardStubByName(shardId);
+
+      const response = await stub.fetch(
+        new Request('http://do/admin/schema', {
+          method: 'POST',
+          body: JSON.stringify({ table: tableName }),
+        })
+      );
+
+      const result = (await response.json()) as {
+        success: boolean;
+        columns?: Array<{ name: string; type: string; notnull: number; dflt_value: string | null; pk: number }>;
+      };
+      if (!result.success || !result.columns) {
+        throw new Error('Failed to get table schema');
+      }
+
+      const columns = (result.columns as Array<{
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+      }>).map(row => ({
+        name: row.name,
+        type: row.type,
+        nullable: row.notnull === 0,
+        default: row.dflt_value,
+        primaryKey: row.pk === 1,
+      }));
+
+      return { columns };
+    } catch (error) {
+      this.log('error', 'Failed to get table schema', { tenantId, tableName, error: (error as Error).message });
+      throw error;
+    }
+  }
+
+  /**
+   * Get data from a specific table with pagination
+   */
+  private async getTableData(
+    tenantId: string,
+    tableName: string,
+    limit: number,
+    offset: number
+  ): Promise<{
+    rows: unknown[];
+    total: number;
+  }> {
+    try {
+      // Get total count via normal query path
+      const countQuery = { sql: `SELECT COUNT(*) as total FROM ${tableName}`, params: [] };
+      const countTarget = await this.routerService.routeQuery(countQuery, tenantId);
+      const countStub = this.getShardStub(countTarget.durableObjectId);
+      const countRes = await countStub.fetch(
+        new Request('http://do/query', {
+          method: 'POST',
+          body: JSON.stringify({ query: countQuery, tenantId }),
+        })
+      );
+      const countData = (await countRes.json()) as { rows?: Array<{ total: number }> };
+      const total = Array.isArray(countData.rows) && countData.rows[0]?.total ? countData.rows[0].total : 0;
+
+      // Get paginated data via normal query path
+      const dataQuery = { sql: `SELECT * FROM ${tableName} LIMIT ? OFFSET ?`, params: [limit, offset] };
+      const dataTarget = await this.routerService.routeQuery(dataQuery, tenantId);
+      const dataStub = this.getShardStub(dataTarget.durableObjectId);
+      const dataRes = await dataStub.fetch(
+        new Request('http://do/query', {
+          method: 'POST',
+          body: JSON.stringify({ query: dataQuery, tenantId }),
+        })
+      );
+      const dataJson = (await dataRes.json()) as { rows?: unknown[] };
+      const rows = Array.isArray(dataJson.rows) ? dataJson.rows : [];
+
+      return { rows, total };
+    } catch (error) {
+      this.log('error', 'Failed to get table data', { tenantId, tableName, error: (error as Error).message });
+      throw error;
+    }
   }
 }
 

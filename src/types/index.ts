@@ -16,6 +16,7 @@ export interface Env extends CloudflareEnvironment {
 
   // R2 bucket for audit logs
   AUDIT_LOGS_BUCKET?: R2Bucket;
+  BACKUPS_BUCKET?: R2Bucket;
 
   // Environment variables
   ENVIRONMENT: string;

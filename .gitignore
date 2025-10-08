@@ -15,6 +15,7 @@ coverage
 .env.local
 .dev.vars
 wrangler.toml.local
+vite.config.timestamp*
 
 # Logs
 *.log

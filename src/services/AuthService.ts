@@ -94,6 +94,24 @@ export class AuthService extends BaseService {
   }
 
   /**
+   * Convenience to extract Access token from cookie header when header is not present
+   */
+  static extractAccessFromCookies(cookieHeader?: string | null): string | undefined {
+    if (!cookieHeader) {
+      return undefined;
+    }
+    // Cloudflare Access sets CF_Authorization cookie for browser-based flows
+    const cookies = cookieHeader.split(';').map((c) => c.trim());
+    for (const c of cookies) {
+      const [k, ...rest] = c.split('=');
+      if (k === 'CF_Authorization') {
+        return decodeURIComponent(rest.join('='));
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Check if token is a Cloudflare Access token
    */
   private isCloudflareAccessToken(claims: JwtClaims & CloudflareAccessClaims): boolean {

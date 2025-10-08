@@ -120,6 +120,10 @@ export class TableShard implements DurableObject {
           return this.handleAdminImport(request);
         case '/admin/events':
           return this.handleAdminEvents(request);
+        case '/admin/tables':
+          return this.handleAdminTables(request);
+        case '/admin/schema':
+          return this.handleAdminSchema(request);
         case '/pitr/bookmark':
           return this.handlePITRBookmark(request);
         case '/pitr/restore':
@@ -608,16 +612,72 @@ export class TableShard implements DurableObject {
         type: row.type,
         payload: row.payload
           ? (() => {
-              try {
-                return JSON.parse(row.payload) as Record<string, unknown>;
-              } catch {
-                return {} as Record<string, unknown>;
-              }
-            })()
+            try {
+              return JSON.parse(row.payload) as Record<string, unknown>;
+            } catch {
+              return {} as Record<string, unknown>;
+            }
+          })()
           : ({} as Record<string, unknown>),
       }));
 
       return new Response(JSON.stringify({ success: true, events }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+        status: 500,
+        headers,
+      });
+    }
+  }
+
+  /**
+   * Admin: list user tables in this shard (safe, read-only)
+   * @FLAG @TODO:  We need to create a master registry of databases and their users
+   *           to properly isolate and manage multi-tenant access.
+   *           For now, this endpoint lists all non-system tables.
+   */
+  private async handleAdminTables(_request: Request): Promise<Response> {
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const cur = this.storage.sql.exec(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_%' ORDER BY name"
+      );
+      const rows = cur.toArray() as Array<{ name: string }>;
+      return new Response(JSON.stringify({ success: true, tables: rows.map((r) => r.name) }), {
+        headers,
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+        status: 500,
+        headers,
+      });
+    }
+  }
+
+  /**
+   * Admin: get schema for a specific table via PRAGMA (safe, read-only)
+   */
+  private async handleAdminSchema(request: Request): Promise<Response> {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = (await request.json().catch(() => ({}))) as { table?: string };
+    if (!body.table) {
+      return new Response(JSON.stringify({ success: false, error: 'table required' }), {
+        status: 400,
+        headers,
+      });
+    }
+    try {
+      const table = this.sanitizeIdentifier(body.table);
+      const cur = this.storage.sql.exec(`PRAGMA table_info(${table})`);
+      const rows = cur.toArray() as Array<{
+        cid: number;
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: string | null;
+        pk: number;
+      }>;
+      return new Response(JSON.stringify({ success: true, columns: rows }), { headers });
     } catch (error) {
       return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
         status: 500,
@@ -868,10 +928,10 @@ export class TableShard implements DurableObject {
     try {
       // Compute DB size via PRAGMA page_count & page_size
       const pageCnt = this.storage.sql.exec('PRAGMA page_count').one() as
-        | { page_count?: number; [k: string]: unknown }
+        | { page_count?: number;[k: string]: unknown }
         | undefined;
       const pageSize = this.storage.sql.exec('PRAGMA page_size').one() as
-        | { page_size?: number; [k: string]: unknown }
+        | { page_size?: number;[k: string]: unknown }
         | undefined;
       const pages = typeof pageCnt?.page_count === 'number' ? pageCnt.page_count : 0;
       const psize = typeof pageSize?.page_size === 'number' ? pageSize.page_size : 0;

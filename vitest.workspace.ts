@@ -14,7 +14,7 @@ const workspace = defineWorkspace([
       environment: 'node',
       globals: true,
       include: ['tests/**/*.{test,spec}.{js,ts}'],
-      exclude: ['tests/integration/**', 'node_modules/**', 'dist/**', 'sdk/**', 'tests/e2e/**'],
+      exclude: ['tests/integration/**', 'node_modules/**', 'dist/**', 'sdk/**', 'tests/e2e/**', 'tests/app/**'],
       deps: { inline: ['vitest'], interopDefault: true },
       setupFiles: ['tests/vitest.setup.ts'],
       testTimeout: 10000,
@@ -41,11 +41,37 @@ const workspace = defineWorkspace([
     },
   }),
 
+  // App (Svelte SPA) tests only
+  defineProject({
+    test: {
+      name: 'app',
+      environment: 'node',
+      globals: true,
+      include: ['tests/app/**/*.{test,spec}.{ts,js}'],
+      exclude: [
+        'node_modules/**',
+        'dist/**',
+        // Exclude Playwright e2e from Vitest app project
+        'tests/app/e2e/**',
+        // Exclude Workers runtime tests from app project
+        'tests/app/integration/**',
+      ],
+      setupFiles: [],
+      alias: {
+        '@': resolve(__dirname, './src'),
+      },
+    },
+  }),
+
   // Workers runtime integration tests
   defineWorkersProject({
     test: {
       name: 'workers',
-      include: ['tests/integration/**/*.test.ts'],
+      include: [
+        'tests/integration/**/*.test.ts',
+        // Pick up any workers tests under app as well
+        'tests/app/integration/**',
+      ],
       setupFiles: ['tests/vitest.setup.ts'],
       poolOptions: {
         workers: {

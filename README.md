@@ -90,10 +90,10 @@ npm run dev
 
 ```bash
 # Test the health endpoint
-curl http://localhost:8787/health
+curl http://localhost:8787/:8787/health
 
 # Execute a SQL query
-curl -X POST http://localhost:8787/v1/query \
+curl -X POST http://localhost:8787/:8787/v1/query \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{

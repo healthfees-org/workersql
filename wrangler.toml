@@ -3,6 +3,13 @@ main = "src/gateway.ts"
 compatibility_date = "2024-08-15"
 compatibility_flags = ["nodejs_compat"]
 
+[assets]
+directory = "src/app/dist"
+binding = "ASSETS"
+
+[triggers]
+crons = ["0 3 * * *"]
+
 [env.development]
 name = "workersql-gateway-dev"
 vars = { ENVIRONMENT = "development", LOG_LEVEL = "info", MAX_SHARD_SIZE_GB = "10", CACHE_TTL_MS = "30000", CACHE_SWR_MS = "120000", BATCH_MAX_OPS = "2", BATCH_MAX_BYTES = "5120", ENFORCE_HTTPS = "true", ALLOW_COUNTRIES = "", BLOCK_COUNTRIES = "", ALLOW_IPS = "", BLOCK_IPS = "", AUDIT_RETENTION_DAYS = "90" }
@@ -46,6 +53,10 @@ dataset = "audit_logs"
 binding = "AUDIT_LOGS_BUCKET"
 bucket_name = "workersql-audit-dev"
 
+[[env.development.r2_buckets]]
+binding = "BACKUPS_BUCKET"
+bucket_name = "workersql-backups-dev"
+
 [env.staging]
 name = "workersql-gateway-staging"
 
@@ -57,6 +68,10 @@ dataset = "audit_logs"
 binding = "AUDIT_LOGS_BUCKET"
 bucket_name = "workersql-audit-staging"
 
+[[env.staging.r2_buckets]]
+binding = "BACKUPS_BUCKET"
+bucket_name = "workersql-backups-staging"
+
 [env.production]
 name = "workersql-gateway-prod"
 
@@ -67,6 +82,10 @@ dataset = "audit_logs"
 [[env.production.r2_buckets]]
 binding = "AUDIT_LOGS_BUCKET"
 bucket_name = "workersql-audit-prod"
+
+[[env.production.r2_buckets]]
+binding = "BACKUPS_BUCKET"
+bucket_name = "workersql-backups-prod"
 
 [[kv_namespaces]]
 binding = "APP_CACHE"
@@ -116,8 +135,9 @@ BLOCK_COUNTRIES = ""
 ALLOW_IPS = ""
 BLOCK_IPS = ""
 AUDIT_RETENTION_DAYS = "90"
+JWT_SECRET = "local-dev-secret"
 
 [build]
 command = "npm run build"
 cwd = "."
-watch_dir = "src"
+watch_dir = ["src/gateway.ts", "src/services", "src/types", "src/app/src"]
