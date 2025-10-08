@@ -105,6 +105,20 @@ export class GeospatialService extends BaseService {
     radiusMeters: number,
     features: Feature<Point>[]
   ): Array<Feature<Point> & { distance: number }> {
+    // Validate inputs
+    if (!this.isValidPosition(center)) {
+      throw new Error('Invalid center position');
+    }
+    if (!Number.isFinite(radiusMeters) || radiusMeters < 0) {
+      throw new Error('Radius must be a non-negative finite number');
+    }
+    if (!Array.isArray(features)) {
+      throw new Error('Features must be an array');
+    }
+    if (features.length === 0) {
+      return [];
+    }
+
     const centerPoint = point(center);
 
     return features
@@ -128,6 +142,20 @@ export class GeospatialService extends BaseService {
     radiusMeters: number,
     features: Feature<Point>[]
   ): Feature[] {
+    // Validate inputs
+    if (!this.isValidPosition(center)) {
+      throw new Error('Invalid center position');
+    }
+    if (!Number.isFinite(radiusMeters) || radiusMeters < 0) {
+      throw new Error('Radius must be a non-negative finite number');
+    }
+    if (!Array.isArray(features)) {
+      throw new Error('Features must be an array');
+    }
+    if (features.length === 0) {
+      return [];
+    }
+
     const centerPoint = point(center);
 
     // Create a geodesic circle (radiusMeters converted to kilometers for Turf.js)
@@ -148,6 +176,13 @@ export class GeospatialService extends BaseService {
     targetPoint: Position,
     features: Feature<Point>[]
   ): Feature<Point> | null {
+    // Validate inputs
+    if (!this.isValidPosition(targetPoint)) {
+      throw new Error('Invalid target position');
+    }
+    if (!Array.isArray(features)) {
+      throw new Error('Features must be an array');
+    }
     if (features.length === 0) {
       return null;
     }
@@ -276,6 +311,12 @@ export class GeospatialService extends BaseService {
     }
     const lon = pos[0];
     const lat = pos[1];
+    
+    // Check for valid numbers (not NaN, not Infinity)
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      return false;
+    }
+    
     return (
       typeof lon === 'number' &&
       typeof lat === 'number' &&
@@ -298,6 +339,14 @@ export class GeospatialService extends BaseService {
    * Returns distance in meters
    */
   calculateDistance(point1: Position, point2: Position): number {
+    // Validate inputs
+    if (!this.isValidPosition(point1)) {
+      throw new Error('Invalid point1 position');
+    }
+    if (!this.isValidPosition(point2)) {
+      throw new Error('Invalid point2 position');
+    }
+
     const from = point(point1);
     const to = point(point2);
 
@@ -311,6 +360,14 @@ export class GeospatialService extends BaseService {
    * Returns bearing in degrees (0-360)
    */
   calculateBearing(point1: Position, point2: Position): number {
+    // Validate inputs
+    if (!this.isValidPosition(point1)) {
+      throw new Error('Invalid point1 position');
+    }
+    if (!this.isValidPosition(point2)) {
+      throw new Error('Invalid point2 position');
+    }
+
     const from = point(point1);
     const to = point(point2);
 

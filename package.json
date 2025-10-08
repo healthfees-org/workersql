@@ -37,10 +37,10 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.6.0",
-    "@cloudflare/workers-types": "^4.20240815.0",
-    "@playwright/test": "^1.47.0",
+    "@cloudflare/workers-types": "^4.20251004.0",
+    "@playwright/test": "^1.56.0",
     "@types/geojson": "^7946.0.16",
-    "@types/jest": "^29.5.5",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.6.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
@@ -57,7 +57,7 @@
     "s2-geometry": "^1.2.10",
     "ts-jest": "^29.1.1",
     "typescript": "^5.2.2",
-    "vitest": "2.0.2",
+    "vitest": "^2.0.2",
     "wrangler": "^4.40.0"
   },
   "dependencies": {
