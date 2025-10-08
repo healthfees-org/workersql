@@ -68,6 +68,20 @@ export class SQLCompatibilityService extends BaseService {
     COALESCE: 'COALESCE',
     GREATEST: 'MAX',
     LEAST: 'MIN',
+
+    // Geospatial functions (MySQL spatial functions to JSON-based equivalents)
+    // Note: These are mapped to JSON functions since SQLite doesn't have native spatial support
+    ST_ASGEOJSON: 'json',
+    ST_GEOMFROMGEOJSON: 'json',
+    ST_X: "json_extract",
+    ST_Y: "json_extract",
+    ST_LATITUDE: "json_extract",
+    ST_LONGITUDE: "json_extract",
+    ST_DISTANCE_SPHERE: 'ST_DISTANCE_SPHERE', // Custom implementation required
+    ST_CONTAINS: 'ST_CONTAINS', // Custom implementation required
+    ST_WITHIN: 'ST_WITHIN', // Custom implementation required
+    ST_INTERSECTS: 'ST_INTERSECTS', // Custom implementation required
+    ST_DWITHIN: 'ST_DWITHIN', // Custom implementation required
   };
 
   // MySQL data types to SQLite mappings
@@ -104,6 +118,15 @@ export class SQLCompatibilityService extends BaseService {
     ENUM: 'TEXT',
     SET: 'TEXT',
     JSON: 'TEXT',
+    GEOJSON: 'TEXT', // GeoJSON stored as TEXT
+    GEOMETRY: 'TEXT', // Geometry stored as GeoJSON TEXT
+    POINT: 'TEXT', // Point stored as GeoJSON TEXT
+    LINESTRING: 'TEXT', // LineString stored as GeoJSON TEXT
+    POLYGON: 'TEXT', // Polygon stored as GeoJSON TEXT
+    MULTIPOINT: 'TEXT',
+    MULTILINESTRING: 'TEXT',
+    MULTIPOLYGON: 'TEXT',
+    GEOMETRYCOLLECTION: 'TEXT',
   };
 
   constructor(env: CloudflareEnvironment) {
