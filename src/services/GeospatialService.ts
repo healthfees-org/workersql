@@ -6,8 +6,9 @@
  * - H3 and S2 cell indexing
  * - Proximity and bounding box queries
  * - Spatial relationship operators
- * - Distance calculations (Haversine formula)
+ * - Distance calculations using Turf.js
  * - Geometry validation and transformation
+ * - Spatial indexing with RBush
  */
 
 import { BaseService } from './BaseService';
@@ -30,6 +31,18 @@ import type {
   GeohashIndex,
 } from '../types/geospatial';
 
+// Import Turf.js for spatial operations
+import distance from '@turf/distance';
+import bearing from '@turf/bearing';
+import circle from '@turf/circle';
+import pointsWithinPolygon from '@turf/points-within-polygon';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import nearestPoint from '@turf/nearest-point';
+import bbox from '@turf/bbox';
+import { point, featureCollection } from '@turf/helpers';
+import type { Feature } from 'geojson';
+import geojsonRbush from 'geojson-rbush';
+
 // Import H3 library with optional handling
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let h3: any = null;
@@ -39,11 +52,6 @@ try {
 } catch {
   // H3 not available - H3 indexing will be disabled
 }
-
-/**
- * Earth radius in meters (mean radius)
- */
-const EARTH_RADIUS_METERS = 6371000;
 
 /**
  * Default H3 resolution for spatial indexing
@@ -56,10 +64,12 @@ const DEFAULT_H3_RESOLUTION = 9; // ~174m hexagon edge
 const DEFAULT_S2_LEVEL = 15; // ~200m cells
 
 /**
- * GeospatialService implementation
+ * GeospatialService implementation with Turf.js integration
  */
 export class GeospatialService extends BaseService {
   private readonly storageOptions: GeospatialStorageOptions;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private spatialIndex: any; // RBush spatial index
 
   constructor(env: CloudflareEnvironment) {
     super(env);
@@ -73,6 +83,101 @@ export class GeospatialService extends BaseService {
       s2Level: DEFAULT_S2_LEVEL,
       validateGeometry: true,
     };
+
+    // Initialize RBush spatial index
+    this.spatialIndex = geojsonRbush();
+  }
+
+  /**
+   * Load features into the spatial index for fast queries
+   */
+  loadFeatures(features: Feature[]): void {
+    this.spatialIndex.clear();
+    this.spatialIndex.load(featureCollection(features));
+  }
+
+  /**
+   * Search for features within a radius using Turf.js
+   * This is the primary method for proximity searches
+   */
+  searchWithinRadius(
+    center: Position,
+    radiusMeters: number,
+    features: Feature<Point>[]
+  ): Array<Feature<Point> & { distance: number }> {
+    const centerPoint = point(center);
+
+    return features
+      .map((feature) => {
+        const dist = distance(centerPoint, feature, { units: 'kilometers' });
+        return {
+          ...feature,
+          distance: dist * 1000, // Convert back to meters
+        };
+      })
+      .filter((f) => f.distance <= radiusMeters)
+      .sort((a, b) => a.distance - b.distance);
+  }
+
+  /**
+   * Search for features within a radius using circle + pointsWithinPolygon
+   * Useful when you need a true geodesic circle
+   */
+  searchWithinCircle(
+    center: Position,
+    radiusMeters: number,
+    features: Feature<Point>[]
+  ): Feature[] {
+    const centerPoint = point(center);
+
+    // Create a geodesic circle (radiusMeters converted to kilometers for Turf.js)
+    const circlePolygon = circle(centerPoint, radiusMeters / 1000, {
+      units: 'kilometers',
+      steps: 64,
+    });
+
+    // Find points within the circle
+    const result = pointsWithinPolygon(featureCollection(features), circlePolygon);
+    return result.features;
+  }
+
+  /**
+   * Find the nearest feature to a given point
+   */
+  findNearest(
+    targetPoint: Position,
+    features: Feature<Point>[]
+  ): Feature<Point> | null {
+    if (features.length === 0) {
+      return null;
+    }
+
+    const target = point(targetPoint);
+    const nearest = nearestPoint(target, featureCollection(features));
+    return nearest;
+  }
+
+  /**
+   * Search using RBush spatial index for fast bbox queries
+   */
+  searchByBBox(boundingBox: BoundingBox): Feature[] {
+    // RBush expects [minX, minY, maxX, maxY]
+    const bboxArray = [
+      boundingBox.minLon,
+      boundingBox.minLat,
+      boundingBox.maxLon,
+      boundingBox.maxLat,
+    ];
+
+    return this.spatialIndex.search(bboxArray).features;
+  }
+
+  /**
+   * Check if a point is within a polygon using Turf.js
+   */
+  isPointInPolygon(testPoint: Position, polygon: Polygon): boolean {
+    const pt = point(testPoint);
+    return booleanPointInPolygon(pt, polygon);
   }
 
   /**
@@ -189,139 +294,74 @@ export class GeospatialService extends BaseService {
   }
 
   /**
-   * Calculate distance between two points using Haversine formula
+   * Calculate distance between two points using Turf.js
    * Returns distance in meters
    */
   calculateDistance(point1: Position, point2: Position): number {
-    const lon1 = point1[0];
-    const lat1 = point1[1];
-    const lon2 = point2[0];
-    const lat2 = point2[1];
+    const from = point(point1);
+    const to = point(point2);
 
-    if (
-      lon1 === undefined ||
-      lat1 === undefined ||
-      lon2 === undefined ||
-      lat2 === undefined
-    ) {
-      throw new Error('Invalid positions for distance calculation');
-    }
-
-    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
-
-    const lat1Rad = toRadians(lat1);
-    const lat2Rad = toRadians(lat2);
-    const deltaLat = toRadians(lat2 - lat1);
-    const deltaLon = toRadians(lon2 - lon1);
-
-    const a =
-      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-      Math.cos(lat1Rad) *
-        Math.cos(lat2Rad) *
-        Math.sin(deltaLon / 2) *
-        Math.sin(deltaLon / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return EARTH_RADIUS_METERS * c;
+    // Turf.js distance returns kilometers by default
+    const distanceKm = distance(from, to, { units: 'kilometers' });
+    return distanceKm * 1000; // Convert to meters
   }
 
   /**
-   * Calculate bearing from point1 to point2 in degrees
+   * Calculate bearing from point1 to point2 using Turf.js
+   * Returns bearing in degrees (0-360)
    */
   calculateBearing(point1: Position, point2: Position): number {
-    const lon1 = point1[0];
-    const lat1 = point1[1];
-    const lon2 = point2[0];
-    const lat2 = point2[1];
+    const from = point(point1);
+    const to = point(point2);
 
-    if (
-      lon1 === undefined ||
-      lat1 === undefined ||
-      lon2 === undefined ||
-      lat2 === undefined
-    ) {
-      throw new Error('Invalid positions for bearing calculation');
-    }
-
-    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
-    const toDegrees = (radians: number) => (radians * 180) / Math.PI;
-
-    const lat1Rad = toRadians(lat1);
-    const lat2Rad = toRadians(lat2);
-    const deltaLon = toRadians(lon2 - lon1);
-
-    const y = Math.sin(deltaLon) * Math.cos(lat2Rad);
-    const x =
-      Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-      Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(deltaLon);
-
-    const bearing = toDegrees(Math.atan2(y, x));
-    return (bearing + 360) % 360; // Normalize to 0-360
+    // Turf bearing returns -180 to 180, we need 0-360
+    const bearingDegrees = bearing(from, to);
+    return bearingDegrees < 0 ? bearingDegrees + 360 : bearingDegrees;
   }
 
   /**
-   * Get bounding box for a geometry
+   * Get bounding box for a geometry using Turf.js
    */
   getBounds(geometry: Geometry): BoundingBox {
-    let minLon = Infinity;
-    let minLat = Infinity;
-    let maxLon = -Infinity;
-    let maxLat = -Infinity;
+    // Turf bbox returns [minX, minY, maxX, maxY]
+    const bboxArray = bbox(geometry);
 
-    const processPosition = (pos: Position) => {
-      const lon = pos[0];
-      const lat = pos[1];
-      if (lon !== undefined && lat !== undefined) {
-        minLon = Math.min(minLon, lon);
-        maxLon = Math.max(maxLon, lon);
-        minLat = Math.min(minLat, lat);
-        maxLat = Math.max(maxLat, lat);
-      }
+    return {
+      minLon: bboxArray[0],
+      minLat: bboxArray[1],
+      maxLon: bboxArray[2],
+      maxLat: bboxArray[3],
     };
-
-    const processCoordinates = (coords: unknown) => {
-      if (Array.isArray(coords) && typeof coords[0] === 'number') {
-        // Single position
-        processPosition(coords as Position);
-      } else if (Array.isArray(coords) && Array.isArray(coords[0])) {
-        // Array of positions or deeper
-        coords.forEach(processCoordinates);
-      }
-    };
-
-    if ('coordinates' in geometry) {
-      processCoordinates(geometry.coordinates);
-    }
-
-    return { minLon, minLat, maxLon, maxLat };
   }
 
   /**
    * Check if a point is within a bounding box
    */
-  isPointInBBox(point: Position, bbox: BoundingBox): boolean {
-    const lon = point[0];
-    const lat = point[1];
-    
+  isPointInBBox(testPoint: Position, bboxBounds: BoundingBox): boolean {
+    const [lon, lat] = testPoint;
     if (lon === undefined || lat === undefined) {
       return false;
     }
 
     return (
-      lon >= bbox.minLon &&
-      lon <= bbox.maxLon &&
-      lat >= bbox.minLat &&
-      lat <= bbox.maxLat
+      lon >= bboxBounds.minLon &&
+      lon <= bboxBounds.maxLon &&
+      lat >= bboxBounds.minLat &&
+      lat <= bboxBounds.maxLat
     );
   }
 
   /**
-   * Check if a point is within a circle
+   * Check if a point is within a circle using Turf.js
    */
-  isPointInCircle(point: Position, circle: Circle): boolean {
-    const distance = this.calculateDistance(point, circle.center);
-    return distance <= circle.radiusMeters;
+  isPointInCircle(testPoint: Position, circleSpec: Circle): boolean {
+    const centerPoint = point(circleSpec.center);
+    const testPt = point(testPoint);
+
+    const distanceKm = distance(centerPoint, testPt, { units: 'kilometers' });
+    const radiusKm = circleSpec.radiusMeters / 1000;
+
+    return distanceKm <= radiusKm;
   }
 
   /**

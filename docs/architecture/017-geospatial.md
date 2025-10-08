@@ -1,4 +1,4 @@
-# ADR-017: Geospatial and GeoJSON Support
+# ADR-017: Geospatial and GeoJSON Support with Turf.js
 
 ## Status
 
@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2025-01-07
+2025-01-07 (Updated 2025-01-08 with Turf.js integration)
 
 ## Context
 
@@ -30,20 +30,22 @@ We will implement comprehensive geospatial support using:
    - Full TypeScript integration using `@types/geojson`
    - No dependency on SQLite spatial extensions
 
-2. **Multiple Spatial Index Types**
+2. **Turf.js for Spatial Operations**
+   - **Primary spatial library**: Industry-standard JavaScript geospatial library
+   - Distance calculations (haversine, vincenty)
+   - Bearing, area, and length calculations
+   - Point-in-polygon, circle, and buffer operations
+   - Spatial relationship tests (contains, within, intersects)
+   - Modular design with tree-shaking support
+
+3. **Multiple Spatial Index Types**
+   - **RBush** (via geojson-rbush): Fast R-tree spatial index for bounding box queries
    - **H3 Hexagonal Grid** (Uber's H3): Preferred for global coverage and consistent cell sizes
    - **Geohash**: Simple string-based encoding for proximity searches
    - **S2 Geometry** (Google's S2): Available but optional due to library compatibility
 
-3. **Client-Side Spatial Operations**
-   - Distance calculations (Haversine formula)
-   - Bearing calculations
-   - Bounding box computations
-   - Point-in-polygon tests (ray casting)
-   - Geometry validation
-
 4. **SQL Compatibility Layer Extensions**
-   - Map MySQL spatial functions to JSON-based equivalents
+   - Map MySQL spatial functions to Turf.js-based equivalents
    - Custom geospatial functions for common operations
    - Query hint support for spatial operations
 
@@ -51,15 +53,36 @@ We will implement comprehensive geospatial support using:
    - Store spatial index entries in separate tables
    - Use H3 cells or geohash prefixes for efficient lookups
    - Support multiple resolution levels
+   - In-memory RBush index for fast bbox filtering
 
 ## Rationale
+
+### Why Turf.js?
+
+- **Industry Standard**: Most popular JavaScript geospatial library (>2M weekly downloads)
+- **Comprehensive**: 100+ spatial operations covering most use cases
+- **Well-Tested**: Battle-tested in production by millions of developers
+- **Modular**: Tree-shakeable packages reduce bundle size
+- **Standards-Compliant**: Follows GeoJSON RFC 7946 spec
+- **Active Development**: Regular updates and community support
+- **Performance**: Optimized JavaScript implementations
+- **Documentation**: Excellent docs with examples
 
 ### Why GeoJSON over WKT/WKB?
 
 - **JSON-Native**: SQLite has excellent JSON support built-in
-- **JavaScript-Friendly**: Direct integration with mapping libraries
+- **JavaScript-Friendly**: Direct integration with Turf.js and mapping libraries
 - **Human-Readable**: Easier debugging and data inspection
 - **Industry Standard**: Wide adoption in web mapping (Mapbox, Leaflet, OpenLayers)
+- **Turf.js Native**: All Turf.js functions work with GeoJSON directly
+
+### Why RBush for Spatial Indexing?
+
+- **Fast**: O(log n) search complexity with R-tree algorithm
+- **JavaScript-Native**: Pure JavaScript, works in Workers
+- **GeoJSON Integration**: geojson-rbush package provides GeoJSON support
+- **Memory Efficient**: Optimized for in-memory operations
+- **Battle-Tested**: Used by Mapbox, Leaflet, and other major libraries
 
 ### Why H3 over Other Grid Systems?
 
@@ -73,7 +96,7 @@ We will implement comprehensive geospatial support using:
 
 - **Not Available**: Cloudflare Durable Objects don't support custom SQLite extensions
 - **Portability**: Our approach works in any JavaScript runtime
-- **Flexibility**: Can add new index types without recompiling SQLite
+- **Flexibility**: Can add new operations without recompiling SQLite
 - **Edge-First**: Designed for distributed edge computing
 
 ## Implementation Details
@@ -162,19 +185,121 @@ const sql = `
 `;
 ```
 
-### GeospatialService API
+### GeospatialService API with Turf.js
 
 ```typescript
 class GeospatialService {
   // Validation
   validateGeometry(geometry: Geometry): GeometryValidationResult;
 
-  // Distance & Bearing
+  // Distance & Bearing (using Turf.js)
   calculateDistance(point1: Position, point2: Position): number;
   calculateBearing(point1: Position, point2: Position): number;
 
-  // Bounding Box
+  // Bounding Box (using Turf.js)
   getBounds(geometry: Geometry): BoundingBox;
+  isPointInBBox(point: Position, bbox: BoundingBox): boolean;
+  isPointInCircle(point: Position, circle: Circle): boolean;
+
+  // Turf.js Proximity Searches
+  searchWithinRadius(center: Position, radiusMeters: number, features: Feature<Point>[]): 
+    Array<Feature<Point> & { distance: number }>;
+  
+  searchWithinCircle(center: Position, radiusMeters: number, features: Feature<Point>[]): 
+    Feature[];
+
+  // Turf.js Spatial Queries
+  findNearest(targetPoint: Position, features: Feature<Point>[]): Feature<Point> | null;
+  isPointInPolygon(testPoint: Position, polygon: Polygon): boolean;
+
+  // RBush Spatial Index
+  loadFeatures(features: Feature[]): void;
+  searchByBBox(bbox: BoundingBox): Feature[];
+
+  // H3 & Geohash Indexing
+  positionToH3(position: Position, resolution?: number): H3Index | null;
+  positionToGeohash(position: Position, precision?: number): GeohashIndex;
+  createSpatialIndex(geometryId: string, geometry: Geometry): SpatialIndexEntry[];
+
+  // Format Conversion
+  geometryToWKT(geometry: Geometry): string;
+
+  // SQL Generation
+  generateSpatialSQL(table: string, column: string, query: SpatialQueryRequest): string;
+}
+```
+
+### Turf.js Usage Examples
+
+#### Find All Locations Within 5 Miles
+
+```typescript
+import { point, featureCollection } from '@turf/helpers';
+
+// Approach 1: Distance filter (simple & accurate)
+const center: Position = [-122.4194, 37.7749];
+const radiusMeters = 5 * 1609.34; // 5 miles in meters
+
+const results = geospatialService.searchWithinRadius(center, radiusMeters, entityFeatures);
+
+// Results include distance in meters
+results.forEach(feature => {
+  console.log(`${feature.properties.name}: ${feature.distance}m away`);
+});
+```
+
+#### Circle + Points Within Polygon
+
+```typescript
+// Approach 2: True geodesic circle
+const center: Position = [-122.4194, 37.7749];
+const radiusMeters = 5 * 1609.34; // 5 miles
+
+const within5mi = geospatialService.searchWithinCircle(center, radiusMeters, entityFeatures);
+
+console.log(`Found ${within5mi.length} locations within 5 miles`);
+```
+
+#### Find Nearest Location
+
+```typescript
+// Find the closest entity to a query point
+const queryPoint: Position = [-122.4194, 37.7749];
+
+const nearest = geospatialService.findNearest(queryPoint, entityFeatures);
+
+if (nearest) {
+  const distance = geospatialService.calculateDistance(queryPoint, nearest.geometry.coordinates);
+  console.log(`Nearest: ${nearest.properties.name} at ${distance}m`);
+}
+```
+
+#### RBush Spatial Index for Performance
+
+```typescript
+// Load features into RBush for fast bbox queries
+const features = [
+  {
+    type: 'Feature',
+    properties: { name: 'Location 1' },
+    geometry: { type: 'Point', coordinates: [-122.4, 37.75] }
+  },
+  // ... thousands more features
+];
+
+geospatialService.loadFeatures(features);
+
+// Fast bbox query (O(log n) with R-tree)
+const bbox = {
+  minLon: -122.5,
+  minLat: 37.7,
+  maxLon: -122.3,
+  maxLat: 37.8
+};
+
+const results = geospatialService.searchByBBox(bbox);
+// Returns only features within the bbox, very fast even with 100k+ features
+```
   isPointInBBox(point: Position, bbox: BoundingBox): boolean;
   isPointInCircle(point: Position, circle: Circle): boolean;
 

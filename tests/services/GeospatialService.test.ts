@@ -446,4 +446,140 @@ describe('GeospatialService', () => {
       expect(sql).toContain('ABS');
     });
   });
+
+  describe('Turf.js Integration', () => {
+    it('should search within radius using Turf.js', () => {
+      const center: Position = [-122.4194, 37.7749]; // San Francisco
+      const features = [
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 1' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4184, 37.7749] as Position, // ~88m away
+          },
+        },
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 2' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4094, 37.7749] as Position, // ~882m away
+          },
+        },
+      ];
+
+      const results = service.searchWithinRadius(center, 500, features);
+
+      expect(results.length).toBe(1);
+      const firstResult = results[0];
+      if (firstResult) {
+        expect(firstResult.properties?.['name']).toBe('Location 1');
+        expect(firstResult.distance).toBeLessThan(500);
+      }
+    });
+
+    it('should search within circle using Turf.js', () => {
+      const center: Position = [-122.4194, 37.7749];
+      const features = [
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 1' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4184, 37.7749] as Position,
+          },
+        },
+      ];
+
+      const results = service.searchWithinCircle(center, 500, features);
+
+      expect(results.length).toBeGreaterThan(0);
+    });
+
+    it('should find nearest point using Turf.js', () => {
+      const target: Position = [-122.4194, 37.7749];
+      const features = [
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 1' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4184, 37.7749] as Position,
+          },
+        },
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 2' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4094, 37.7749] as Position,
+          },
+        },
+      ];
+
+      const nearest = service.findNearest(target, features);
+
+      expect(nearest).toBeDefined();
+      if (nearest) {
+        expect(nearest.properties?.['name']).toBe('Location 1');
+      }
+    });
+
+    it('should check point in polygon using Turf.js', () => {
+      const testPoint: Position = [-122.4, 37.75];
+      const polygon: Polygon = {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [-122.5, 37.7],
+            [-122.3, 37.7],
+            [-122.3, 37.8],
+            [-122.5, 37.8],
+            [-122.5, 37.7],
+          ],
+        ],
+      };
+
+      const result = service.isPointInPolygon(testPoint, polygon);
+      expect(result).toBe(true);
+    });
+
+    it('should search by bounding box using RBush', () => {
+      const features = [
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 1' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.4, 37.75] as Position,
+          },
+        },
+        {
+          type: 'Feature' as const,
+          properties: { name: 'Location 2' },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [-122.6, 37.9] as Position, // Outside bbox
+          },
+        },
+      ];
+
+      service.loadFeatures(features);
+
+      const bbox = {
+        minLon: -122.5,
+        minLat: 37.7,
+        maxLon: -122.3,
+        maxLat: 37.8,
+      };
+
+      const results = service.searchByBBox(bbox);
+      expect(results.length).toBe(1);
+      const firstResult = results[0];
+      if (firstResult) {
+        expect(firstResult.properties?.['name']).toBe('Location 1');
+      }
+    });
+  });
 });
