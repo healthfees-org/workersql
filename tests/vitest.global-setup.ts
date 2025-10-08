@@ -7,7 +7,7 @@ export async function setup() {
   // Global setup for Vitest tests using Miniflare
   miniflare = new Miniflare({
     modules: true,
-    scriptPath: new URL('../dist/gateway.js', import.meta.url).pathname,
+    scriptPath: new URL('../dist/src/gateway.js', import.meta.url).pathname,
 
     // KV Namespaces for caching
     kvNamespaces: {

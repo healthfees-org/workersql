@@ -338,3 +338,6 @@ export interface ShardSplitRequest {
   tenantColumn?: string;
   description?: string;
 }
+
+// Re-export geospatial types
+export * from './geospatial';
