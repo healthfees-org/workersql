@@ -1,0 +1,40 @@
+# Build artifacts
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Test results
+test-output/
+*.log
+
+# Coverage reports
+jacoco.exec
+.jacoco/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+dependency-reduced-pom.xml
