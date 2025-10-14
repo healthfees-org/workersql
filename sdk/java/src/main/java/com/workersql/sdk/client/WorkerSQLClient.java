@@ -9,6 +9,13 @@ import com.workersql.sdk.retry.RetryStrategy;
 import com.workersql.sdk.types.*;
 import com.workersql.sdk.util.DSNParser;
 import com.workersql.sdk.util.ParsedDSN;
+import com.workersql.sdk.websocket.WebSocketTransactionClient;
+import com.workersql.sdk.metadata.MetadataProvider;
+import com.workersql.sdk.procedures.StoredProcedureCaller;
+import com.workersql.sdk.procedures.MultiStatementExecutor;
+import com.workersql.sdk.streaming.QueryStream;
+import com.workersql.sdk.streaming.CursorStream;
+import com.workersql.sdk.streaming.StreamOptions;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -342,6 +349,120 @@ public class WorkerSQLClient implements AutoCloseable {
         }
 
         return builder.build();
+    }
+
+    // ========== WebSocket Transaction Support ==========
+
+    /**
+     * Create a WebSocket transaction client for sticky sessions
+     */
+    public WebSocketTransactionClient createWebSocketClient() {
+        return new WebSocketTransactionClient(config.getApiEndpoint(), config.getApiKey());
+    }
+
+    /**
+     * Execute a transaction using WebSocket sticky sessions
+     */
+    public void transactionWebSocket(TransactionCallback callback) throws Exception {
+        WebSocketTransactionClient wsClient = createWebSocketClient();
+        try {
+            // Connect to WebSocket
+            wsClient.connect().get();
+
+            // Begin transaction
+            String txId = wsClient.begin().get();
+            logger.debug("Started WebSocket transaction: {}", txId);
+
+            try {
+                // Execute callback
+                TransactionContext ctx = new TransactionContext(txId, this);
+                callback.execute(ctx);
+
+                // Commit
+                wsClient.commit().get();
+                logger.debug("Committed WebSocket transaction: {}", txId);
+            } catch (Exception e) {
+                // Rollback on error
+                try {
+                    wsClient.rollback().get();
+                    logger.debug("Rolled back WebSocket transaction: {}", txId);
+                } catch (Exception rollbackError) {
+                    logger.error("Failed to rollback transaction", rollbackError);
+                }
+                throw e;
+            }
+        } finally {
+            wsClient.close();
+        }
+    }
+
+    // ========== Metadata Provider Support ==========
+
+    /**
+     * Get metadata provider for database introspection
+     */
+    public MetadataProvider getMetadataProvider() {
+        return new MetadataProvider((sql, params) -> query(sql, params));
+    }
+
+    // ========== Stored Procedure Support ==========
+
+    /**
+     * Get stored procedure caller
+     */
+    public StoredProcedureCaller getStoredProcedureCaller() {
+        return new StoredProcedureCaller((sql, params) -> query(sql, params));
+    }
+
+    /**
+     * Get multi-statement executor
+     */
+    public MultiStatementExecutor getMultiStatementExecutor() {
+        return new MultiStatementExecutor((sql, params) -> query(sql, params));
+    }
+
+    // ========== Query Streaming Support ==========
+
+    /**
+     * Create a query stream for large result sets
+     */
+    public QueryStream streamQuery(String sql, List<Object> params, StreamOptions options) {
+        return new QueryStream(sql, params, (s, p) -> query(s, p), options);
+    }
+
+    /**
+     * Create a query stream with default options
+     */
+    public QueryStream streamQuery(String sql, List<Object> params) {
+        return streamQuery(sql, params, null);
+    }
+
+    /**
+     * Create a query stream without parameters
+     */
+    public QueryStream streamQuery(String sql) {
+        return streamQuery(sql, Collections.emptyList(), null);
+    }
+
+    /**
+     * Create a cursor-based stream for large result sets
+     */
+    public CursorStream createCursorStream(String sql, List<Object> params, StreamOptions options) {
+        return new CursorStream(sql, params, (s, p) -> query(s, p), options);
+    }
+
+    /**
+     * Create a cursor stream with default options
+     */
+    public CursorStream createCursorStream(String sql, List<Object> params) {
+        return createCursorStream(sql, params, null);
+    }
+
+    /**
+     * Create a cursor stream without parameters
+     */
+    public CursorStream createCursorStream(String sql) {
+        return createCursorStream(sql, Collections.emptyList(), null);
     }
 
     /**

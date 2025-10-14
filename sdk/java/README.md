@@ -13,6 +13,10 @@ A Java SDK for WorkerSQL - bringing MySQL-compatible database operations to the 
 - 🔄 **Connection Pooling**: Efficient connection management with automatic pooling
 - 🔁 **Automatic Retries**: Exponential backoff retry logic for transient failures
 - 📡 **Transaction Support**: ACID transactions with automatic commit/rollback
+- 🌐 **WebSocket Transactions**: Sticky sessions for multi-query transactions
+- 🔍 **Metadata Provider**: Database introspection and schema exploration
+- 🎯 **Stored Procedures**: Execute and manage stored procedures and functions
+- 📊 **Query Streaming**: Process large result sets without loading all into memory
 - 📝 **Type Safe**: Full type safety with builder patterns
 - 🧪 **Well Tested**: Comprehensive unit, smoke, and fuzz test coverage
 - 📚 **Well Documented**: Complete JavaDoc documentation and examples
@@ -459,6 +463,155 @@ mvn clean test jacoco:report
 mvn javadoc:javadoc
 
 # View documentation at: target/site/apidocs/index.html
+```
+
+## Advanced Features
+
+### WebSocket Transactions
+
+For multi-query transactions that require sticky sessions, use WebSocket connections:
+
+```java
+// Execute transaction over WebSocket
+client.transactionWebSocket(ctx -> {
+    ctx.query("UPDATE accounts SET balance = balance - 100 WHERE id = ?", Arrays.asList(1));
+    ctx.query("UPDATE accounts SET balance = balance + 100 WHERE id = ?", Arrays.asList(2));
+    // Auto-commits on success, rolls back on error
+});
+
+// Or create a WebSocket client manually
+WebSocketTransactionClient wsClient = client.createWebSocketClient();
+wsClient.connect().get();
+String txId = wsClient.begin().get();
+wsClient.query("INSERT INTO logs (message) VALUES (?)", new Object[]{"Transaction started"}).get();
+wsClient.commit().get();
+wsClient.close();
+```
+
+### Metadata Provider
+
+Introspect database structure and schema:
+
+```java
+MetadataProvider metadata = client.getMetadataProvider();
+
+// List all databases
+List<DatabaseMetadata> databases = metadata.getDatabases();
+
+// Get tables in a database
+List<TableMetadata> tables = metadata.getTables("mydb");
+
+// Get comprehensive table metadata
+TableMetadata userTable = metadata.getTableMetadata("users", "mydb");
+System.out.println("Table: " + userTable.getName());
+System.out.println("Engine: " + userTable.getEngine());
+System.out.println("Row count: " + userTable.getRowCount());
+
+// Get column information
+for (ColumnMetadata column : userTable.getColumns()) {
+    System.out.println(column.getName() + " " + column.getType() + 
+        (column.isNullable() ? " NULL" : " NOT NULL"));
+}
+
+// Get index information
+for (IndexMetadata index : userTable.getIndexes()) {
+    System.out.println("Index: " + index.getName() + 
+        " on " + String.join(", ", index.getColumns()));
+}
+```
+
+### Stored Procedures
+
+Execute and manage stored procedures:
+
+```java
+StoredProcedureCaller procedures = client.getStoredProcedureCaller();
+
+// Call a stored procedure
+List<ProcedureParameter> params = Arrays.asList(
+    new ProcedureParameter("userId", ProcedureParameter.ParameterType.IN, 1),
+    new ProcedureParameter("newBalance", ProcedureParameter.ParameterType.OUT, null)
+);
+ProcedureResult result = procedures.call("UpdateAccountBalance", params);
+
+// Get output parameters
+Map<String, Object> outputParams = result.getOutputParams();
+System.out.println("New balance: " + outputParams.get("newBalance"));
+
+// Call a stored function
+Object result = procedures.callFunction("CalculateDiscount", Arrays.asList(100, 0.15));
+
+// Create a stored procedure
+procedures.create("GetUserById", 
+    Arrays.asList("IN user_id INT"),
+    "SELECT * FROM users WHERE id = user_id;"
+);
+
+// List procedures
+List<String> procList = procedures.list("mydb");
+
+// Get procedure definition
+String definition = procedures.getDefinition("GetUserById");
+```
+
+### Query Streaming
+
+Process large result sets without loading all data into memory:
+
+```java
+// Stream query results
+try (QueryStream stream = client.streamQuery("SELECT * FROM large_table")) {
+    stream.forEach(row -> {
+        System.out.println("Processing row: " + row.get("id"));
+    });
+}
+
+// With custom options
+StreamOptions options = StreamOptions.builder()
+    .batchSize(1000)  // Fetch 1000 rows at a time
+    .highWaterMark(10)  // Buffer up to 10 batches
+    .timeout(60000)  // 60 second timeout
+    .build();
+
+try (QueryStream stream = client.streamQuery("SELECT * FROM large_table", Collections.emptyList(), options)) {
+    // Process row by row
+    while (stream.hasNext()) {
+        Map<String, Object> row = stream.next();
+        // Process row
+    }
+}
+
+// Collect all rows (be careful with large result sets)
+List<Map<String, Object>> allRows = stream.collect();
+
+// Cursor-based streaming (requires server support)
+CursorStream cursor = client.createCursorStream("SELECT * FROM large_table");
+cursor.onData(row -> System.out.println("Row: " + row))
+      .onEnd(() -> System.out.println("Stream complete"))
+      .onError(error -> System.err.println("Error: " + error));
+cursor.start();
+```
+
+### Multi-Statement Execution
+
+Execute multiple SQL statements in sequence:
+
+```java
+MultiStatementExecutor executor = client.getMultiStatementExecutor();
+
+// Execute list of statements
+List<QueryResponse> results = executor.execute(Arrays.asList(
+    "CREATE TABLE temp (id INT)",
+    "INSERT INTO temp VALUES (1)",
+    "SELECT * FROM temp"
+));
+
+// Execute SQL script
+List<QueryResponse> results = executor.executeScript(
+    "CREATE TABLE logs (id INT, message TEXT);" +
+    "INSERT INTO logs VALUES (1, 'First log');" +
+    "INSERT INTO logs VALUES (2, 'Second log');"
+);
 ```
 
 ## Testing
