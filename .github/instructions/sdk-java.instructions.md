@@ -1,6 +1,6 @@
 # Java SDK Implementation - WorkerSQL
 
-This instruction documents the Java SDK implementation for WorkerSQL, providing a MySQL-compatible client for edge database operations with full feature parity to the Node.js SDK.
+This instruction documents the Java SDK implementation for WorkerSQL, providing a MySQL-compatible client for edge database operations with full feature parity to the Node.js SDK including all advanced features.
 
 ## Overview
 
@@ -9,6 +9,10 @@ The Java SDK (`workersql-java-sdk`) provides a drop-in replacement for MySQL cli
 - Thread-safe connection pooling
 - Automatic retry logic with exponential backoff
 - Transaction support with automatic commit/rollback
+- **WebSocket transaction support for sticky sessions**
+- **Metadata provider for database introspection**
+- **Stored procedure support**
+- **Query streaming for large result sets**
 - Builder pattern for configuration
 - AutoCloseable support for try-with-resources
 - Type hints and comprehensive JavaDoc
@@ -49,6 +53,34 @@ The Java SDK (`workersql-java-sdk`) provides a drop-in replacement for MySQL cli
    - CacheOptions, ErrorResponse, ValidationError
    - HealthCheckResponse
    - All types use immutable builders
+
+6. **WebSocketTransactionClient** (`com.workersql.sdk.websocket.WebSocketTransactionClient`)
+   - WebSocket connections for sticky sessions
+   - Transaction lifecycle management (BEGIN/COMMIT/ROLLBACK)
+   - CompletableFuture-based async API
+   - Automatic message handling and timeout
+
+7. **MetadataProvider** (`com.workersql.sdk.metadata.MetadataProvider`)
+   - Database introspection
+   - Table, column, index, and foreign key metadata
+   - Support for SHOW statements
+   - Comprehensive metadata types
+
+8. **StoredProcedureCaller** (`com.workersql.sdk.procedures.StoredProcedureCaller`)
+   - Call stored procedures with IN/OUT/INOUT parameters
+   - Execute stored functions
+   - Create/drop procedures
+   - List and get procedure definitions
+
+9. **QueryStream & CursorStream** (`com.workersql.sdk.streaming.*`)
+   - Iterator-based streaming for large result sets
+   - Cursor-based streaming with event listeners
+   - Configurable batch size and buffer settings
+   - AutoCloseable for resource management
+
+10. **MultiStatementExecutor** (`com.workersql.sdk.procedures.MultiStatementExecutor`)
+    - Execute multiple SQL statements in sequence
+    - SQL script execution with statement splitting
 
 ## DSN Format
 
@@ -339,7 +371,7 @@ mvn clean package
 
 ## Feature Parity with Node.js SDK
 
-The Java SDK achieves full feature parity with the Node.js SDK:
+The Java SDK achieves full feature parity with the Node.js SDK including all advanced features:
 
 ✅ DSN parsing
 ✅ Connection pooling
@@ -350,14 +382,54 @@ The Java SDK achieves full feature parity with the Node.js SDK:
 ✅ Health checks
 ✅ Type safety (TypeScript → Java generics)
 ✅ AutoCloseable (similar to Node.js promise cleanup)
+✅ **WebSocket transaction support for sticky sessions**
+✅ **Metadata provider for database introspection**
+✅ **Stored procedure support**
+✅ **Query streaming for large result sets**
+✅ **Cursor-based streaming**
+✅ **Multi-statement execution**
 ✅ Comprehensive documentation
+
+## Implemented Advanced Features
+
+### WebSocket Transaction Support ✅
+- WebSocket connections using OkHttp
+- Sticky sessions for multi-query transactions
+- Automatic connection management
+- CompletableFuture-based async API
+- Transaction lifecycle (BEGIN/COMMIT/ROLLBACK)
+
+### Metadata Provider ✅
+- Complete database introspection
+- Column metadata (type, nullable, primary key, etc.)
+- Index information (BTREE/HASH/FULLTEXT/SPATIAL)
+- Foreign key relationships
+- Table statistics and properties
+
+### Stored Procedures ✅
+- Call procedures with IN/OUT/INOUT parameters
+- Execute stored functions
+- Create and drop procedures
+- List procedures and get definitions
+- Multi-statement executor for SQL scripts
+
+### Query Streaming ✅
+- Iterator-based streaming for large result sets
+- Cursor-based streaming with event listeners
+- Configurable batch size and buffer settings
+- AutoCloseable for automatic cleanup
+- Backpressure support
 
 ## Future Enhancements
 
-- [ ] WebSocket transaction support for sticky sessions
-- [ ] Metadata provider for database introspection
-- [ ] Stored procedure support
-- [ ] Query streaming for large result sets
+- [ ] JDBC driver compatibility layer
+- [ ] Spring Boot autoconfiguration
+- [ ] Hibernate integration
+- [ ] Query builder API
+- [ ] Schema migration tools
+- [ ] Connection health pinging
+- [ ] Query result caching
+- [ ] Metrics collection
 - [ ] Batch query operations
 - [ ] Query result caching
 - [ ] Metrics collection
@@ -381,7 +453,7 @@ The Java SDK achieves full feature parity with the Node.js SDK:
 
 ## Status
 
-**Current Implementation**: Production-ready with full feature parity to Node.js SDK
+**Current Implementation**: Production-ready with full feature parity to Node.js SDK including all advanced features
 
 **Version**: 1.0.0
 
@@ -390,3 +462,7 @@ The Java SDK achieves full feature parity with the Node.js SDK:
 **Test Results**: 74 passing, 1 skipped (98.6% pass rate)
 
 **Code Quality**: Maven build with strict compiler settings, JaCoCo coverage, comprehensive JavaDoc
+
+**Production Classes**: 49 classes (15 core + 14 metadata + 4 procedures + 3 streaming + 1 websocket + 12 types/util)
+
+**Advanced Features**: ✅ All implemented (WebSocket, Metadata, Stored Procedures, Streaming)
