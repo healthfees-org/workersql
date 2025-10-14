@@ -7,10 +7,8 @@ const origCrypto = globalThis.crypto as any;
 const poly: any = origCrypto ?? webcrypto;
 if (!poly.getRandomValues) {
   poly.getRandomValues = (array: Uint8Array) => {
-    for (let i = 0; i < array.length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
-    return array;
+    // Use Node's webcrypto to produce secure random bytes
+    return webcrypto.getRandomValues(array);
   };
 }
 if (!poly.randomUUID) {
