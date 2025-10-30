@@ -20,6 +20,7 @@ ADRs document important architectural decisions, their context, and rationale.
 | [ADR-011](./011-shard-management.md)              | Shard Management                              | Accepted | 2025-09-02 |
 | [ADR-012](./012-security-enhancements.md)         | Security Enhancements                         | Accepted | 2025-09-02 |
 | [ADR-017](./017-geospatial.md)                    | Geospatial and GeoJSON Support                | Accepted | 2025-01-07 |
+| [ADR-018](./018-go-sdk.md)                        | Go SDK Implementation                         | Accepted | 2025-10-14 |
 
 ## ADR Template
 
