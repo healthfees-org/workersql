@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/healthfees-org/workersql/sdk/go/internal/dsn"
@@ -424,9 +425,9 @@ func configFromDSN(parsed *dsn.ParsedDSN) Config {
 		}
 	}
 	if retryAttempts, ok := parsed.Params["retryAttempts"]; ok {
-		var attempts int
-		fmt.Sscanf(retryAttempts, "%d", &attempts)
-		config.RetryAttempts = attempts
+		if attempts, err := strconv.Atoi(retryAttempts); err == nil && attempts > 0 {
+			config.RetryAttempts = attempts
+		}
 	}
 
 	// Connection pooling params
@@ -439,14 +440,14 @@ func configFromDSN(parsed *dsn.ParsedDSN) Config {
 		}
 
 		if minConn, ok := parsed.Params["minConnections"]; ok {
-			var min int
-			fmt.Sscanf(minConn, "%d", &min)
-			config.Pooling.MinConnections = min
+			if min, err := strconv.Atoi(minConn); err == nil && min > 0 {
+				config.Pooling.MinConnections = min
+			}
 		}
 		if maxConn, ok := parsed.Params["maxConnections"]; ok {
-			var max int
-			fmt.Sscanf(maxConn, "%d", &max)
-			config.Pooling.MaxConnections = max
+			if max, err := strconv.Atoi(maxConn); err == nil && max > 0 {
+				config.Pooling.MaxConnections = max
+			}
 		}
 	}
 

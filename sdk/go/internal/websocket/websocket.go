@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -325,11 +326,8 @@ func (c *TransactionClient) handleMessages() {
 }
 
 var idCounter = uint64(0)
-var idMu sync.Mutex
 
 func generateID() string {
-	idMu.Lock()
-	defer idMu.Unlock()
-	idCounter++
-	return fmt.Sprintf("msg_%d_%d", time.Now().UnixNano(), idCounter)
+	count := atomic.AddUint64(&idCounter, 1)
+	return fmt.Sprintf("msg_%d_%d", time.Now().UnixNano(), count)
 }

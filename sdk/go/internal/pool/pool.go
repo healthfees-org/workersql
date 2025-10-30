@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,6 +38,7 @@ type Pool struct {
 	mu          sync.RWMutex
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
+	connCounter uint64
 }
 
 // NewPool creates a new connection pool
@@ -165,7 +167,8 @@ func (p *Pool) Close() error {
 }
 
 func (p *Pool) createConnection() *Connection {
-	id := fmt.Sprintf("conn_%d_%d", time.Now().UnixNano(), len(p.connections))
+	count := atomic.AddUint64(&p.connCounter, 1)
+	id := fmt.Sprintf("conn_%d_%d", time.Now().UnixNano(), count)
 
 	client := &http.Client{
 		Timeout: p.options.ConnectionTimeout,

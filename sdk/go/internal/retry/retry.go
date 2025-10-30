@@ -3,9 +3,10 @@ package retry
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"math"
-	"math/rand"
 	"time"
 )
 
@@ -84,7 +85,16 @@ func (s *Strategy) CalculateDelay(attempt int) time.Duration {
 
 // AddJitter adds jitter to prevent thundering herd
 func (s *Strategy) AddJitter(delay time.Duration) time.Duration {
-	jitter := time.Duration(rand.Float64() * 0.3 * float64(delay)) // Up to 30% jitter
+	// Use crypto/rand for cryptographically secure randomness
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fallback to no jitter if crypto/rand fails
+		return delay
+	}
+	
+	// Convert random bytes to float64 between 0 and 1
+	randFloat := float64(binary.BigEndian.Uint64(b[:])) / float64(^uint64(0))
+	jitter := time.Duration(randFloat * 0.3 * float64(delay)) // Up to 30% jitter
 	return delay + jitter
 }
 
