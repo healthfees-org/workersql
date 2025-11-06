@@ -12,12 +12,23 @@ describe('D1Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     
-    // Create mock environment with proper types
+    // Create complete mock environment satisfying CloudflareEnvironment interface
     mockEnv = {
+      // Required bindings
+      APP_CACHE: {} as KVNamespace,
+      DB_EVENTS: {} as Queue,
+      SHARD: {} as DurableObjectNamespace,
+      PORTABLE_DB: {} as D1Database,
+      
+      // Required environment variables
       CLOUDFLARE_ACCOUNT_ID: 'test-account-id',
       CLOUDFLARE_API_TOKEN: 'test-api-token',
+      ENVIRONMENT: 'test',
       LOG_LEVEL: 'info',
-    } as unknown as CloudflareEnvironment;
+      MAX_SHARD_SIZE_GB: '10',
+      CACHE_TTL_MS: '30000',
+      CACHE_SWR_MS: '120000',
+    };
 
     service = new D1Service(mockEnv);
   });
@@ -475,10 +486,10 @@ describe('D1Service', () => {
 
   describe('configuration validation', () => {
     it('should throw error if CLOUDFLARE_ACCOUNT_ID is missing', async () => {
-      const invalidEnv = {
-        CLOUDFLARE_API_TOKEN: 'test-token',
-        LOG_LEVEL: 'info',
-      } as unknown as CloudflareEnvironment;
+      const invalidEnv: CloudflareEnvironment = {
+        ...mockEnv,
+        CLOUDFLARE_ACCOUNT_ID: undefined,
+      };
 
       const invalidService = new D1Service(invalidEnv);
 
@@ -486,10 +497,10 @@ describe('D1Service', () => {
     });
 
     it('should throw error if CLOUDFLARE_API_TOKEN is missing', async () => {
-      const invalidEnv = {
-        CLOUDFLARE_ACCOUNT_ID: 'test-account',
-        LOG_LEVEL: 'info',
-      } as unknown as CloudflareEnvironment;
+      const invalidEnv: CloudflareEnvironment = {
+        ...mockEnv,
+        CLOUDFLARE_API_TOKEN: undefined,
+      };
 
       const invalidService = new D1Service(invalidEnv);
 

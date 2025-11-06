@@ -225,6 +225,7 @@ export interface CloudflareEnvironment {
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ACCESS_AUD?: string;
   CLOUDFLARE_GRAPHQL_ENDPOINT?: string;
+  PORTABLE_DB_ID?: string;
   API_TOKENS?: string;
   AUDIT_RETENTION_DAYS?: string;
   // Network security toggles

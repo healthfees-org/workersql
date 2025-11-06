@@ -13,21 +13,31 @@ describe('QueueEventSystem - D1 Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // Create complete mock environment satisfying CloudflareEnvironment interface
     mockEnv = {
+      // Mock bindings with required methods
       DB_EVENTS: {
         send: vi.fn().mockResolvedValue(undefined),
         sendBatch: vi.fn().mockResolvedValue(undefined),
-      },
+      } as unknown as Queue,
       APP_CACHE: {
         get: vi.fn().mockResolvedValue(null),
         put: vi.fn().mockResolvedValue(undefined),
         delete: vi.fn().mockResolvedValue(undefined),
-      },
+      } as unknown as KVNamespace,
+      SHARD: {} as DurableObjectNamespace,
+      PORTABLE_DB: {} as D1Database,
+      
+      // Required environment variables
       CLOUDFLARE_ACCOUNT_ID: 'test-account-id',
       CLOUDFLARE_API_TOKEN: 'test-api-token',
       PORTABLE_DB_ID: 'test-db-id',
+      ENVIRONMENT: 'test',
       LOG_LEVEL: 'info',
-    } as unknown as CloudflareEnvironment;
+      MAX_SHARD_SIZE_GB: '10',
+      CACHE_TTL_MS: '30000',
+      CACHE_SWR_MS: '120000',
+    };
 
     queueSystem = new QueueEventSystem(mockEnv);
   });
@@ -131,10 +141,10 @@ describe('QueueEventSystem - D1 Integration', () => {
     });
 
     it('should skip sync when PORTABLE_DB_ID not configured', async () => {
-      const envWithoutDbId = {
+      const envWithoutDbId: CloudflareEnvironment = {
         ...mockEnv,
         PORTABLE_DB_ID: undefined,
-      } as unknown as CloudflareEnvironment;
+      };
 
       const queueSystemNoDB = new QueueEventSystem(envWithoutDbId);
 

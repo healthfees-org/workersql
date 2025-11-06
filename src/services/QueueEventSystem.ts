@@ -405,8 +405,7 @@ export class QueueEventSystem implements IQueueEventSystem {
         const d1Service = new D1Service(this.env);
         
         // Get database ID from environment or use default naming convention
-        const envVars = this.env as unknown as Record<string, string>;
-        const databaseId = envVars['PORTABLE_DB_ID'] || '';
+        const databaseId = this.env.PORTABLE_DB_ID || '';
         
         if (!databaseId) {
           console.warn('PORTABLE_DB_ID not configured, skipping D1 sync');

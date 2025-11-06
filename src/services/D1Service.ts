@@ -76,9 +76,8 @@ export class D1Service extends BaseService {
     super(env);
     
     // Extract configuration from environment
-    const envVars = env as unknown as Record<string, string>;
-    this.accountId = envVars['CLOUDFLARE_ACCOUNT_ID'] || '';
-    this.apiToken = envVars['CLOUDFLARE_API_TOKEN'] || '';
+    this.accountId = env.CLOUDFLARE_ACCOUNT_ID || '';
+    this.apiToken = env.CLOUDFLARE_API_TOKEN || '';
     this.baseUrl = 'https://api.cloudflare.com/client/v4';
 
     if (!this.accountId || !this.apiToken) {

@@ -14,9 +14,10 @@ crons = ["0 3 * * *"]
 name = "workersql-gateway-dev"
 vars = { ENVIRONMENT = "development", LOG_LEVEL = "info", MAX_SHARD_SIZE_GB = "10", CACHE_TTL_MS = "30000", CACHE_SWR_MS = "120000", BATCH_MAX_OPS = "2", BATCH_MAX_BYTES = "5120", ENFORCE_HTTPS = "true", ALLOW_COUNTRIES = "", BLOCK_COUNTRIES = "", ALLOW_IPS = "", BLOCK_IPS = "", AUDIT_RETENTION_DAYS = "90" }
 compatibility_flags = ["nodejs_compat"]
-# D1 REST API Configuration (uncomment and set in production)
+# D1 REST API Configuration
+# Set CLOUDFLARE_ACCOUNT_ID and PORTABLE_DB_ID here or in secrets
+# For API tokens, use Wrangler secrets: wrangler secret put CLOUDFLARE_API_TOKEN
 # CLOUDFLARE_ACCOUNT_ID = "your_account_id_here"
-# CLOUDFLARE_API_TOKEN = "your_api_token_here"
 # PORTABLE_DB_ID = "your_d1_database_id_here"
 
 [[env.development.kv_namespaces]]
@@ -141,8 +142,9 @@ BLOCK_IPS = ""
 AUDIT_RETENTION_DAYS = "90"
 JWT_SECRET = "local-dev-secret"
 # D1 REST API Configuration
+# Set CLOUDFLARE_ACCOUNT_ID and PORTABLE_DB_ID here or in secrets
+# For API tokens, use Wrangler secrets: wrangler secret put CLOUDFLARE_API_TOKEN
 # CLOUDFLARE_ACCOUNT_ID = "your_account_id_here"
-# CLOUDFLARE_API_TOKEN = "your_api_token_here"
 # PORTABLE_DB_ID = "your_d1_database_id_here"
 
 [build]
