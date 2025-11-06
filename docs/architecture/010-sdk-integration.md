@@ -529,6 +529,8 @@ const client = new WorkerSQLClient({
 
 - [Node.js SDK Documentation](../../sdk/node/README.md)
 - [Python SDK Documentation](../../sdk/python/README.md)
+- [PHP SDK Documentation](../../sdk/php/README.md)
+- [Go SDK Documentation](../../sdk/go/README.md)
 - [API Specification](../api-specification.md)
 - [SQL Compatibility Layer](./008-sql-compatibility-layer.md)
 - [Connection Management](./009-connection-management.md)

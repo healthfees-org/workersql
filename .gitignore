@@ -10,6 +10,11 @@ node_modules
 dist
 coverage
 
+# Go
+vendor/
+*.test
+*.out
+
 # Local development
 .env
 .env.local
