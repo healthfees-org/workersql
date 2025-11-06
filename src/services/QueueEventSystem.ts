@@ -2,6 +2,7 @@
 
 import { DatabaseEvent, CloudflareEnvironment, EdgeSQLError } from '../types';
 import { CacheService } from './CacheService';
+import { D1Service } from './D1Service';
 
 /**
  * QueueEventSystem - Handles asynchronous event processing for database operations
@@ -396,18 +397,39 @@ export class QueueEventSystem implements IQueueEventSystem {
       }
     });
 
-    // D1 sync handler
+    // D1 sync handler - uses REST API to sync shard data to D1
     this.registerHandler('d1_sync', async (event: DatabaseEvent) => {
       console.log(`Processing D1 sync event for shard ${event.shardId}`);
 
-      if (this.env.PORTABLE_DB) {
-        try {
-          // TODO: Implement actual D1 sync logic
-          console.log(`D1 sync completed for shard ${event.shardId}`);
-        } catch (error) {
-          console.error(`D1 sync failed for shard ${event.shardId}:`, error);
-          throw error;
+      try {
+        const d1Service = new D1Service(this.env);
+        
+        // Get database ID from environment or use default naming convention
+        const databaseId = this.env.PORTABLE_DB_ID || '';
+        
+        if (!databaseId) {
+          console.warn('PORTABLE_DB_ID not configured, skipping D1 sync');
+          return;
         }
+
+        // Extract operations from event payload
+        // The payload should contain SQL operations to sync
+        const operations = event.payload ? 
+          (JSON.parse(event.payload) as { operations?: Array<{ sql: string; params?: unknown[] }> }).operations : 
+          undefined;
+
+        if (!operations || operations.length === 0) {
+          console.log('No operations to sync in D1 sync event');
+          return;
+        }
+
+        // Use D1Service REST API to sync operations
+        await d1Service.syncShardToD1(databaseId, event.shardId, operations);
+        
+        console.log(`D1 sync completed for shard ${event.shardId}, synced ${operations.length} operations`);
+      } catch (error) {
+        console.error(`D1 sync failed for shard ${event.shardId}:`, error);
+        throw error;
       }
     });
   }
